@@ -156,6 +156,11 @@ impl LocalSearch {
         self.db.list_packages().await
     }
 
+    /// List all versions with package info.
+    pub async fn list_versions(&self) -> Result<Vec<super::models::VersionWithPackage>> {
+        self.db.list_versions().await
+    }
+
     /// Get the database.
     pub fn db(&self) -> &LocalDb {
         &self.db

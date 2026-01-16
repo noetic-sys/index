@@ -1,4 +1,4 @@
-//! Remove command - remove a specific package version from the index.
+//! Skip command - mark a package version as skipped.
 
 use anyhow::{Context, Result};
 use clap::Args;
@@ -6,16 +6,12 @@ use clap::Args;
 use crate::local::{self, LocalIndexer};
 
 #[derive(Args)]
-pub struct RemoveCmd {
-    /// Package to remove (format: registry:name@version or name@version)
+pub struct SkipCmd {
+    /// Package to skip (format: registry:name@version or name@version)
     pub package: String,
-
-    /// Skip confirmation prompt
-    #[arg(long, short = 'y')]
-    pub yes: bool,
 }
 
-impl RemoveCmd {
+impl SkipCmd {
     pub async fn run(&self) -> Result<()> {
         let index_dir =
             local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
@@ -35,35 +31,10 @@ impl RemoveCmd {
                 registry, name, version
             ))?;
 
-        if !self.yes {
-            println!("Remove {}:{}@{}?", registry, name, version);
-            print!("[y/N] ");
-            std::io::Write::flush(&mut std::io::stdout())?;
+        // Mark as skipped
+        indexer.db().mark_version_skipped(&ver.version_id).await?;
 
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input)?;
-
-            if !input.trim().eq_ignore_ascii_case("y") {
-                println!("Aborted.");
-                return Ok(());
-            }
-        }
-
-        // Delete version from db (returns namespaces)
-        let namespaces = indexer.db().delete_version(&ver.version_id).await?;
-
-        // Delete from vector store
-        for ns in &namespaces {
-            indexer.vectors().delete_namespace(ns).await?;
-        }
-
-        // Delete from blob storage
-        indexer
-            .storage()
-            .delete_package(&registry, &name, &version)
-            .await?;
-
-        println!("Removed {}:{}@{}", registry, name, version);
+        println!("Skipped {}:{}@{}", registry, name, version);
 
         Ok(())
     }

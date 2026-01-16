@@ -10,7 +10,7 @@ mod config;
 mod db;
 mod indexer;
 pub mod mcp;
-mod models;
+pub mod models;
 mod search;
 mod storage;
 mod vector;

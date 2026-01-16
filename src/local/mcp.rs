@@ -162,21 +162,21 @@ impl LocalMcpServer {
         &self,
         Parameters(_input): Parameters<ListPackagesInput>,
     ) -> Result<CallToolResult, McpError> {
-        match self.search.list_packages().await {
-            Ok(packages) => {
-                if packages.is_empty() {
+        match self.search.list_versions().await {
+            Ok(versions) => {
+                if versions.is_empty() {
                     return Ok(CallToolResult::success(vec![Content::text(
                         "No packages indexed yet. Run `idx init` to index your project's dependencies.",
                     )]));
                 }
 
                 let mut output = String::from("Indexed packages:\n\n");
-                for pkg in packages {
+                for ver in versions {
                     output.push_str(&format!(
                         "- {}:{}@{}\n",
-                        pkg.registry, pkg.name, pkg.version
+                        ver.registry, ver.name, ver.version
                     ));
-                    if let Some(desc) = pkg.description {
+                    if let Some(desc) = ver.description {
                         output.push_str(&format!("  {}\n", desc));
                     }
                 }

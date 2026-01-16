@@ -6,8 +6,12 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Args;
 
+use crate::local::models::VersionStatus;
 use crate::local::{self, LocalIndexer};
-use crate::manifests::{parse_cargo_deps, parse_npm_deps, parse_python_deps};
+use crate::manifests::{
+    discover_manifest_dirs, parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps,
+    parse_python_deps,
+};
 
 #[derive(Args)]
 pub struct StatusCmd {
@@ -28,23 +32,44 @@ impl StatusCmd {
         let index_dir = index_dir.unwrap();
         let indexer = LocalIndexer::new(&index_dir).await?;
 
-        // Get indexed packages
-        let indexed_packages = indexer.db().list_packages().await?;
-        let indexed_set: HashSet<(String, String, String)> = indexed_packages
+        // Get indexed versions
+        let indexed_versions = indexer.db().list_versions().await?;
+        let indexed_set: HashSet<(String, String, String)> = indexed_versions
             .iter()
-            .map(|p| (p.registry.clone(), p.name.clone(), p.version.clone()))
+            .filter(|v| v.status() == VersionStatus::Indexed)
+            .map(|v| (v.registry.clone(), v.name.clone(), v.version.clone()))
             .collect();
 
-        // Get manifest dependencies
+        let failed_count = indexed_versions
+            .iter()
+            .filter(|v| v.status() == VersionStatus::Failed)
+            .count();
+
+        let skipped_count = indexed_versions
+            .iter()
+            .filter(|v| v.status() == VersionStatus::Skipped)
+            .count();
+
+        // Get manifest dependencies from all discovered roots
+        let manifest_dirs = discover_manifest_dirs(&self.path)?;
         let mut manifest_deps = Vec::new();
-        if let Ok(deps) = parse_npm_deps(&self.path) {
-            manifest_deps.extend(deps);
-        }
-        if let Ok(deps) = parse_cargo_deps(&self.path) {
-            manifest_deps.extend(deps);
-        }
-        if let Ok(deps) = parse_python_deps(&self.path) {
-            manifest_deps.extend(deps);
+
+        for dir in &manifest_dirs {
+            if let Ok(deps) = parse_npm_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_cargo_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_python_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_maven_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_go_deps(dir) {
+                manifest_deps.extend(deps);
+            }
         }
 
         let manifest_set: HashSet<(String, String, String)> = manifest_deps
@@ -54,13 +79,18 @@ impl StatusCmd {
 
         // Find gaps
         let missing: Vec<_> = manifest_set.difference(&indexed_set).collect();
-
         let extra: Vec<_> = indexed_set.difference(&manifest_set).collect();
 
         // Print status
         println!("Index: {}", index_dir.display());
         println!();
         println!("Indexed:  {} packages", indexed_set.len());
+        if failed_count > 0 {
+            println!("Failed:   {} packages", failed_count);
+        }
+        if skipped_count > 0 {
+            println!("Skipped:  {} packages", skipped_count);
+        }
         println!("Manifest: {} dependencies", manifest_set.len());
         println!();
 

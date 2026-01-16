@@ -31,12 +31,14 @@ pub struct LocalIndexer {
     config: LocalConfig,
 }
 
-/// Result of indexing a package.
+/// Result of indexing a package version.
 #[derive(Debug)]
 pub struct IndexResult {
-    pub package_id: String,
+    pub version_id: String,
     pub chunks_indexed: usize,
     pub files_processed: usize,
+    /// True if this version was already indexed/skipped
+    pub skipped: bool,
 }
 
 impl LocalIndexer {
@@ -64,36 +66,48 @@ impl LocalIndexer {
     ) -> Result<IndexResult> {
         info!(registry = %registry, name, version, "indexing package");
 
-        // Check if already indexed
-        if let Some(existing) = self
+        // Get or create package
+        let package_id = self
             .db
-            .find_package(registry.as_str(), name, version)
-            .await?
-        {
-            info!("package already indexed");
+            .get_or_create_package(&CreatePackage {
+                registry: registry.as_str().to_string(),
+                name: name.to_string(),
+                description: None, // Will be updated after download
+            })
+            .await?;
+
+        // Get or create version
+        let (version_id, should_skip) = self
+            .db
+            .get_or_create_version(&package_id, version)
+            .await?;
+
+        if should_skip {
+            info!("version already indexed or skipped");
             return Ok(IndexResult {
-                package_id: existing.id,
+                version_id,
                 chunks_indexed: 0,
                 files_processed: 0,
+                skipped: true,
             });
         }
 
         // Download package
         info!("downloading package");
         let client = RegistryClients::new(registry);
-        let pkg_info = client.get_version(name, version).await?;
-        let files = client.download_source(name, version).await?;
 
-        // Create package record
-        let package_id = self
-            .db
-            .upsert_package(&CreatePackage {
-                registry: registry.as_str().to_string(),
-                name: name.to_string(),
-                version: version.to_string(),
-                description: pkg_info.description,
-            })
-            .await?;
+        let (_pkg_info, files) = match async {
+            let pkg_info = client.get_version(name, version).await?;
+            let files = client.download_source(name, version).await?;
+            Ok::<_, anyhow::Error>((pkg_info, files))
+        }.await {
+            Ok(result) => result,
+            Err(e) => {
+                // Mark as failed
+                self.db.mark_version_failed(&version_id, &e.to_string()).await?;
+                return Err(e);
+            }
+        };
 
         // Parse files
         info!(files = files.len(), "parsing files");
@@ -101,16 +115,25 @@ impl LocalIndexer {
 
         if chunks.is_empty() {
             info!("no chunks extracted");
+            // Mark as indexed with 0 chunks (valid state - package has no indexable code)
+            self.db.mark_version_indexed(&version_id, 0).await?;
             return Ok(IndexResult {
-                package_id,
+                version_id,
                 chunks_indexed: 0,
                 files_processed: files.len(),
+                skipped: false,
             });
         }
 
         // Generate embeddings
         info!(chunks = chunks.len(), "generating embeddings");
-        let embeddings = self.generate_embeddings(&chunks).await?;
+        let embeddings = match self.generate_embeddings(&chunks).await {
+            Ok(e) => e,
+            Err(e) => {
+                self.db.mark_version_failed(&version_id, &e.to_string()).await?;
+                return Err(e);
+            }
+        };
 
         // Build namespace
         let namespace = format!("{}/{}/{}", registry.as_str(), name, version);
@@ -140,7 +163,7 @@ impl LocalIndexer {
             // Prepare DB record
             db_chunks.push(CreateChunk {
                 id: chunk_id,
-                package_id: package_id.clone(),
+                version_id: version_id.clone(),
                 namespace: namespace.clone(),
                 chunk_type: format!("{:?}", chunk.chunk_type).to_lowercase(),
                 name: chunk.name.clone(),
@@ -158,18 +181,29 @@ impl LocalIndexer {
         }
 
         // Insert into vector store
-        self.vectors.insert(&namespace, vector_records).await?;
+        if let Err(e) = self.vectors.insert(&namespace, vector_records).await {
+            self.db.mark_version_failed(&version_id, &e.to_string()).await?;
+            return Err(e);
+        }
 
         // Insert into SQLite
-        self.db.insert_chunks(&db_chunks).await?;
+        if let Err(e) = self.db.insert_chunks(&db_chunks).await {
+            self.db.mark_version_failed(&version_id, &e.to_string()).await?;
+            return Err(e);
+        }
 
         let chunks_indexed = db_chunks.len();
+
+        // Mark as successfully indexed
+        self.db.mark_version_indexed(&version_id, chunks_indexed as i32).await?;
+
         info!(chunks_indexed, "indexing complete");
 
         Ok(IndexResult {
-            package_id,
+            version_id,
             chunks_indexed,
             files_processed: files.len(),
+            skipped: false,
         })
     }
 

@@ -7,8 +7,8 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Row, SqlitePool};
 
 use super::models::{
-    ChunkRow, ChunkWithPackage, CreateChunk, CreatePackage, ExistingChunk, PackageRow,
-    bytes_to_vector, vector_to_bytes,
+    ChunkRow, ChunkWithPackage, CreateChunk, CreatePackage, ExistingChunk, IndexStats, PackageRow,
+    VersionRow, VersionStatus, VersionWithPackage, bytes_to_vector, vector_to_bytes,
 };
 
 /// Local SQLite database.
@@ -38,27 +38,60 @@ impl LocalDb {
 
     /// Run database migrations.
     async fn migrate(&self) -> Result<()> {
+        // Check if we need to migrate from old schema
+        let has_old_schema = sqlx::query_scalar::<_, i32>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='packages' AND sql LIKE '%version TEXT%'",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(0) > 0;
+
+        if has_old_schema {
+            self.migrate_from_v1().await?;
+        }
+
+        // Packages table (unique by registry + name)
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS packages (
                 id TEXT PRIMARY KEY,
                 registry TEXT NOT NULL,
                 name TEXT NOT NULL,
-                version TEXT NOT NULL,
                 description TEXT,
-                indexed_at TEXT NOT NULL,
-                UNIQUE(registry, name, version)
+                created_at TEXT NOT NULL,
+                UNIQUE(registry, name)
             )
             "#,
         )
         .execute(&self.pool)
         .await?;
 
+        // Versions table (unique by package_id + version)
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS versions (
+                id TEXT PRIMARY KEY,
+                package_id TEXT NOT NULL,
+                version TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                error_message TEXT,
+                chunk_count INTEGER NOT NULL DEFAULT 0,
+                indexed_at TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (package_id) REFERENCES packages(id),
+                UNIQUE(package_id, version)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Chunks table (references version_id)
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS chunks (
                 id TEXT PRIMARY KEY,
-                package_id TEXT NOT NULL,
+                version_id TEXT NOT NULL,
                 namespace TEXT NOT NULL,
                 chunk_type TEXT NOT NULL,
                 name TEXT NOT NULL,
@@ -72,18 +105,27 @@ impl LocalDb {
                 storage_key TEXT NOT NULL,
                 content_hash TEXT NOT NULL,
                 vector BLOB NOT NULL,
-                FOREIGN KEY (package_id) REFERENCES packages(id)
+                FOREIGN KEY (version_id) REFERENCES versions(id)
             )
             "#,
         )
         .execute(&self.pool)
         .await?;
 
+        // Indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_versions_package ON versions(package_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_versions_status ON versions(status)")
+            .execute(&self.pool)
+            .await?;
+
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_chunks_namespace ON chunks(namespace)")
             .execute(&self.pool)
             .await?;
 
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_chunks_package ON chunks(package_id)")
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_chunks_version ON chunks(version_id)")
             .execute(&self.pool)
             .await?;
 
@@ -94,44 +136,179 @@ impl LocalDb {
         Ok(())
     }
 
+    /// Migrate from v1 schema (single packages table with version column).
+    async fn migrate_from_v1(&self) -> Result<()> {
+        tracing::info!("Migrating database from v1 schema...");
+
+        // Rename old tables
+        sqlx::query("ALTER TABLE packages RENAME TO packages_v1")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("ALTER TABLE chunks RENAME TO chunks_v1")
+            .execute(&self.pool)
+            .await?;
+
+        // New tables will be created by migrate()
+        // Data migration would happen here if needed
+        Ok(())
+    }
+
     // ==================== Package Operations ====================
 
-    /// Insert or update a package.
-    pub async fn upsert_package(&self, input: &CreatePackage) -> Result<String> {
+    /// Get or create a package, returning its ID.
+    pub async fn get_or_create_package(&self, input: &CreatePackage) -> Result<String> {
+        if let Some(pkg) = self.find_package(&input.registry, &input.name).await? {
+            return Ok(pkg.id);
+        }
+
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
 
-        let result = sqlx::query(
+        sqlx::query(
             r#"
-            INSERT INTO packages (id, registry, name, version, description, indexed_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(registry, name, version) DO UPDATE SET
-                description = excluded.description,
-                indexed_at = excluded.indexed_at
-            RETURNING id
+            INSERT INTO packages (id, registry, name, description, created_at)
+            VALUES (?, ?, ?, ?, ?)
             "#,
         )
         .bind(&id)
         .bind(&input.registry)
         .bind(&input.name)
-        .bind(&input.version)
         .bind(&input.description)
         .bind(&now)
-        .fetch_one(&self.pool)
+        .execute(&self.pool)
         .await?;
 
-        Ok(result.get("id"))
+        Ok(id)
     }
 
-    /// Find a package by registry, name, and version.
-    pub async fn find_package(
+    /// Find a package by registry and name.
+    pub async fn find_package(&self, registry: &str, name: &str) -> Result<Option<PackageRow>> {
+        let row = sqlx::query_as::<_, PackageRow>(
+            "SELECT * FROM packages WHERE registry = ? AND name = ?",
+        )
+        .bind(registry)
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row)
+    }
+
+    /// List all packages.
+    pub async fn list_packages(&self) -> Result<Vec<PackageRow>> {
+        let rows =
+            sqlx::query_as::<_, PackageRow>("SELECT * FROM packages ORDER BY created_at DESC")
+                .fetch_all(&self.pool)
+                .await?;
+
+        Ok(rows)
+    }
+
+    /// Delete a package and all its versions/chunks.
+    pub async fn delete_package(&self, package_id: &str) -> Result<Vec<String>> {
+        let namespaces: Vec<String> = sqlx::query_scalar(
+            r#"
+            SELECT DISTINCT c.namespace FROM chunks c
+            JOIN versions v ON c.version_id = v.id
+            WHERE v.package_id = ?
+            "#,
+        )
+        .bind(package_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            DELETE FROM chunks WHERE version_id IN (
+                SELECT id FROM versions WHERE package_id = ?
+            )
+            "#,
+        )
+        .bind(package_id)
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("DELETE FROM versions WHERE package_id = ?")
+            .bind(package_id)
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("DELETE FROM packages WHERE id = ?")
+            .bind(package_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(namespaces)
+    }
+
+    // ==================== Version Operations ====================
+
+    /// Get or create a version, returning (version_id, should_skip).
+    pub async fn get_or_create_version(
+        &self,
+        package_id: &str,
+        version: &str,
+    ) -> Result<(String, bool)> {
+        if let Some(ver) = self.find_version_by_package(package_id, version).await? {
+            let status = ver.status();
+            let should_skip = matches!(status, VersionStatus::Indexed | VersionStatus::Skipped);
+            return Ok((ver.id, should_skip));
+        }
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        sqlx::query(
+            r#"
+            INSERT INTO versions (id, package_id, version, status, created_at)
+            VALUES (?, ?, ?, 'pending', ?)
+            "#,
+        )
+        .bind(&id)
+        .bind(package_id)
+        .bind(version)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok((id, false))
+    }
+
+    /// Find a version by package_id and version string.
+    pub async fn find_version_by_package(
+        &self,
+        package_id: &str,
+        version: &str,
+    ) -> Result<Option<VersionRow>> {
+        let row = sqlx::query_as::<_, VersionRow>(
+            "SELECT * FROM versions WHERE package_id = ? AND version = ?",
+        )
+        .bind(package_id)
+        .bind(version)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row)
+    }
+
+    /// Find a version by registry, name, and version.
+    pub async fn find_version(
         &self,
         registry: &str,
         name: &str,
         version: &str,
-    ) -> Result<Option<PackageRow>> {
-        let row = sqlx::query_as::<_, PackageRow>(
-            "SELECT * FROM packages WHERE registry = ? AND name = ? AND version = ?",
+    ) -> Result<Option<VersionWithPackage>> {
+        let row = sqlx::query_as::<_, VersionWithPackage>(
+            r#"
+            SELECT
+                v.id as version_id, v.version, v.status, v.error_message,
+                v.chunk_count, v.indexed_at,
+                p.id as package_id, p.registry, p.name, p.description
+            FROM versions v
+            JOIN packages p ON v.package_id = p.id
+            WHERE p.registry = ? AND p.name = ? AND v.version = ?
+            "#,
         )
         .bind(registry)
         .bind(name)
@@ -142,14 +319,127 @@ impl LocalDb {
         Ok(row)
     }
 
-    /// List all packages.
-    pub async fn list_packages(&self) -> Result<Vec<PackageRow>> {
-        let rows =
-            sqlx::query_as::<_, PackageRow>("SELECT * FROM packages ORDER BY indexed_at DESC")
+    /// List all versions with package info.
+    pub async fn list_versions(&self) -> Result<Vec<VersionWithPackage>> {
+        let rows = sqlx::query_as::<_, VersionWithPackage>(
+            r#"
+            SELECT
+                v.id as version_id, v.version, v.status, v.error_message,
+                v.chunk_count, v.indexed_at,
+                p.id as package_id, p.registry, p.name, p.description
+            FROM versions v
+            JOIN packages p ON v.package_id = p.id
+            ORDER BY v.indexed_at DESC NULLS LAST, v.created_at DESC
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows)
+    }
+
+    /// List versions by status.
+    pub async fn list_versions_by_status(
+        &self,
+        status: VersionStatus,
+    ) -> Result<Vec<VersionWithPackage>> {
+        let rows = sqlx::query_as::<_, VersionWithPackage>(
+            r#"
+            SELECT
+                v.id as version_id, v.version, v.status, v.error_message,
+                v.chunk_count, v.indexed_at,
+                p.id as package_id, p.registry, p.name, p.description
+            FROM versions v
+            JOIN packages p ON v.package_id = p.id
+            WHERE v.status = ?
+            ORDER BY v.created_at DESC
+            "#,
+        )
+        .bind(status.to_string())
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows)
+    }
+
+    /// Mark a version as successfully indexed.
+    pub async fn mark_version_indexed(&self, version_id: &str, chunk_count: i32) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+
+        sqlx::query(
+            r#"
+            UPDATE versions
+            SET status = 'indexed', chunk_count = ?, indexed_at = ?, error_message = NULL
+            WHERE id = ?
+            "#,
+        )
+        .bind(chunk_count)
+        .bind(&now)
+        .bind(version_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Mark a version as failed.
+    pub async fn mark_version_failed(&self, version_id: &str, error: &str) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE versions
+            SET status = 'failed', error_message = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(error)
+        .bind(version_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Mark a version as skipped.
+    pub async fn mark_version_skipped(&self, version_id: &str) -> Result<()> {
+        sqlx::query("UPDATE versions SET status = 'skipped' WHERE id = ?")
+            .bind(version_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Mark a version for retry (set status to pending).
+    pub async fn mark_version_pending(&self, version_id: &str) -> Result<()> {
+        sqlx::query(
+            "UPDATE versions SET status = 'pending', error_message = NULL WHERE id = ?",
+        )
+        .bind(version_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Delete a version and its chunks.
+    pub async fn delete_version(&self, version_id: &str) -> Result<Vec<String>> {
+        let namespaces: Vec<String> =
+            sqlx::query_scalar("SELECT DISTINCT namespace FROM chunks WHERE version_id = ?")
+                .bind(version_id)
                 .fetch_all(&self.pool)
                 .await?;
 
-        Ok(rows)
+        sqlx::query("DELETE FROM chunks WHERE version_id = ?")
+            .bind(version_id)
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("DELETE FROM versions WHERE id = ?")
+            .bind(version_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(namespaces)
     }
 
     // ==================== Chunk Operations ====================
@@ -161,14 +451,14 @@ impl LocalDb {
         sqlx::query(
             r#"
             INSERT INTO chunks (
-                id, package_id, namespace, chunk_type, name, file_path,
+                id, version_id, namespace, chunk_type, name, file_path,
                 start_line, end_line, visibility, signature, docstring,
                 snippet, storage_key, content_hash, vector
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(&chunk.id)
-        .bind(&chunk.package_id)
+        .bind(&chunk.version_id)
         .bind(&chunk.namespace)
         .bind(&chunk.chunk_type)
         .bind(&chunk.name)
@@ -196,36 +486,23 @@ impl LocalDb {
         Ok(())
     }
 
-    /// Delete all chunks for a package.
-    pub async fn delete_package_chunks(&self, package_id: &str) -> Result<Vec<String>> {
-        // Get namespaces before deleting
+    /// Delete all chunks for a version.
+    pub async fn delete_version_chunks(&self, version_id: &str) -> Result<Vec<String>> {
         let namespaces: Vec<String> =
-            sqlx::query_scalar("SELECT DISTINCT namespace FROM chunks WHERE package_id = ?")
-                .bind(package_id)
+            sqlx::query_scalar("SELECT DISTINCT namespace FROM chunks WHERE version_id = ?")
+                .bind(version_id)
                 .fetch_all(&self.pool)
                 .await?;
 
-        sqlx::query("DELETE FROM chunks WHERE package_id = ?")
-            .bind(package_id)
+        sqlx::query("DELETE FROM chunks WHERE version_id = ?")
+            .bind(version_id)
             .execute(&self.pool)
             .await?;
 
         Ok(namespaces)
     }
 
-    /// Delete a package and all its chunks.
-    pub async fn delete_package(&self, package_id: &str) -> Result<Vec<String>> {
-        let namespaces = self.delete_package_chunks(package_id).await?;
-
-        sqlx::query("DELETE FROM packages WHERE id = ?")
-            .bind(package_id)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(namespaces)
-    }
-
-    /// Get all chunks in a namespace (for building HNSW index).
+    /// Get all chunks in a namespace.
     pub async fn get_chunks_by_namespace(&self, namespace: &str) -> Result<Vec<ChunkRow>> {
         let rows = sqlx::query_as::<_, ChunkRow>("SELECT * FROM chunks WHERE namespace = ?")
             .bind(namespace)
@@ -243,9 +520,10 @@ impl LocalDb {
                 c.id, c.namespace, c.chunk_type, c.name, c.file_path,
                 c.start_line, c.end_line, c.visibility, c.signature,
                 c.docstring, c.snippet, c.storage_key,
-                p.registry, p.name as package_name, p.version
+                p.registry, p.name as package_name, v.version
             FROM chunks c
-            JOIN packages p ON c.package_id = p.id
+            JOIN versions v ON c.version_id = v.id
+            JOIN packages p ON v.package_id = p.id
             WHERE c.id = ?
             "#,
         )
@@ -285,5 +563,49 @@ impl LocalDb {
             .await?;
 
         Ok(namespaces)
+    }
+
+    // ==================== Stats ====================
+
+    /// Get index statistics.
+    pub async fn get_stats(&self) -> Result<IndexStats> {
+        let package_count: i32 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM packages")
+                .fetch_one(&self.pool)
+                .await?;
+
+        let version_count: i32 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM versions")
+                .fetch_one(&self.pool)
+                .await?;
+
+        let indexed_count: i32 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM versions WHERE status = 'indexed'")
+                .fetch_one(&self.pool)
+                .await?;
+
+        let failed_count: i32 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM versions WHERE status = 'failed'")
+                .fetch_one(&self.pool)
+                .await?;
+
+        let skipped_count: i32 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM versions WHERE status = 'skipped'")
+                .fetch_one(&self.pool)
+                .await?;
+
+        let chunk_count: i32 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM chunks")
+                .fetch_one(&self.pool)
+                .await?;
+
+        Ok(IndexStats {
+            package_count: package_count as u32,
+            version_count: version_count as u32,
+            indexed_count: indexed_count as u32,
+            failed_count: failed_count as u32,
+            skipped_count: skipped_count as u32,
+            chunk_count: chunk_count as u32,
+        })
     }
 }
