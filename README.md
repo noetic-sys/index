@@ -42,12 +42,17 @@ idx search "parse JSON from string"
 
 This is the main use case—let Claude search your actual dependencies instead of hallucinating.
 
-Add to `.mcp.json` in your project (or `~/.claude.json` globally):
+```bash
+claude mcp add --scope user --transport stdio index -- idx mcp
+```
+
+Or manually add to `.mcp.json` in your project (or `~/.claude.json` globally):
 
 ```json
 {
   "mcpServers": {
     "index": {
+      "type": "stdio",
       "command": "idx",
       "args": ["mcp"]
     }
