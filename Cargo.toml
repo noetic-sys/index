@@ -71,6 +71,7 @@ url = "2.5"
 cargo-lock = "10"
 notify = { version = "6.1", default-features = false, features = ["macos_kqueue"] }
 tempfile = "3.15"
+glob = "0.3.3"
 
 [dev-dependencies]
 mockall = "0.13"

@@ -84,13 +84,19 @@ fn collect_direct_deps(dir: &Path) -> Result<HashMap<String, String>> {
         && let Some(members) = workspace.get("members").and_then(|m| m.as_array())
     {
         for member in members {
-            if let Some(member_path) = member.as_str() {
-                let member_toml = dir.join(member_path).join("Cargo.toml");
-                if member_toml.exists()
-                    && let Ok(content) = std::fs::read_to_string(&member_toml)
-                    && let Ok(toml) = content.parse::<toml::Value>()
-                {
-                    all_deps.extend(extract_deps(&toml, &workspace_versions));
+            if let Some(member_pattern) = member.as_str() {
+                // Expand glob patterns like "crates/*"
+                let pattern = dir.join(member_pattern).join("Cargo.toml");
+                let pattern_str = pattern.to_string_lossy();
+
+                if let Ok(paths) = glob::glob(&pattern_str) {
+                    for entry in paths.flatten() {
+                        if let Ok(content) = std::fs::read_to_string(&entry)
+                            && let Ok(toml) = content.parse::<toml::Value>()
+                        {
+                            all_deps.extend(extract_deps(&toml, &workspace_versions));
+                        }
+                    }
                 }
             }
         }
