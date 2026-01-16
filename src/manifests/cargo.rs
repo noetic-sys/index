@@ -254,8 +254,14 @@ anyhow = "1.0"
         let names: Vec<_> = deps.iter().map(|d| d.name.as_str()).collect();
 
         assert!(names.contains(&"serde"), "should find serde from workspace");
-        assert!(names.contains(&"tokio"), "should find tokio from crates/foo");
-        assert!(names.contains(&"anyhow"), "should find anyhow from crates/bar");
+        assert!(
+            names.contains(&"tokio"),
+            "should find tokio from crates/foo"
+        );
+        assert!(
+            names.contains(&"anyhow"),
+            "should find anyhow from crates/bar"
+        );
     }
 
     #[test]
@@ -306,7 +312,13 @@ clap = "4.0"
         let deps = parse_cargo_deps(root).unwrap();
         let names: Vec<_> = deps.iter().map(|d| d.name.as_str()).collect();
 
-        assert!(names.contains(&"reqwest"), "should find reqwest from packages/core");
-        assert!(names.contains(&"clap"), "should find clap from packages/cli");
+        assert!(
+            names.contains(&"reqwest"),
+            "should find reqwest from packages/core"
+        );
+        assert!(
+            names.contains(&"clap"),
+            "should find clap from packages/cli"
+        );
     }
 }
