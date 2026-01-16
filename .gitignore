@@ -1,0 +1,19 @@
+# Build
+/target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Local data
+.index/
+*.db
+*.db-shm
+*.db-wal
+
+# Environment
+.env
+.env.local

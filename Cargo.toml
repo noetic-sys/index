@@ -1,0 +1,76 @@
+[package]
+name = "index-cli"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+description = "Semantic code search for your dependencies"
+repository = "https://github.com/noetic-sys/index"
+
+[[bin]]
+name = "idx"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Async
+tokio = { version = "1.43", features = ["full"] }
+futures = "0.3"
+
+# HTTP
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+serde_yaml = "0.9"
+quick-xml = { version = "0.37", features = ["serialize"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Local storage
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+lancedb = "0.15"
+arrow-array = "53"
+arrow-schema = "53"
+
+# MCP
+rmcp = { version = "0.8", features = ["server", "transport-io"] }
+
+# Tree-sitter parsing
+tree-sitter = "0.24"
+tree-sitter-typescript = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-rust = "0.23"
+tree-sitter-go = "0.23"
+tree-sitter-java = "0.23"
+tree-sitter-md = "0.3"
+
+# Archive handling
+flate2 = "1.0"
+tar = "0.4"
+zip = "2.2"
+
+# Utils
+sha2 = "0.10"
+uuid = { version = "1.11", features = ["v4", "v5", "v7", "serde"] }
+secrecy = { version = "0.10", features = ["serde"] }
+rayon = "1.10"
+chrono = { version = "0.4", features = ["serde"] }
+hex = "0.4"
+dirs = "5.0"
+url = "2.5"
+cargo-lock = "10"
+notify = { version = "6.1", default-features = false, features = ["macos_kqueue"] }
+tempfile = "3.15"
+
+[dev-dependencies]
+mockall = "0.13"
