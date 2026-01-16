@@ -1,80 +1,48 @@
 # idx
 
-Local semantic code search for your actual dependencies.
+Local semantic search for your project's dependencies. Use it standalone or as an MCP server for Claude Code.
 
-## What is idx?
+## Getting Started
 
-When you ask an AI "how do I use library X?", it searches the web and gives you examples from blog posts, outdated docs, or random GitHub repos. Those examples might be for the wrong version, use deprecated APIs, or just not work with your setup.
-
-**idx is different.** It reads your manifest files, downloads the exact packages and versions you're using, and indexes them locally. When you search, you're searching code that's actually in your dependency tree.
+### 1. Install
 
 ```bash
-# You're using lodash 4.17.21 in your project
-idx search "deep clone an object"
+brew install noetic-sys/tap/idx
 
-# Results come from lodash 4.17.21 - not Stack Overflow, not some random tutorial
+# or: curl -fsSL https://raw.githubusercontent.com/noetic-sys/index/main/install.sh | sh
+# or: cargo install --path .
 ```
 
-### Why This Matters
+### 2. Set your API key
 
-- **Version-accurate**: Search the APIs that actually exist in your pinned versions
-- **No hallucinations**: Results are real code from real packages you depend on
-- **Works offline**: Everything is indexed locally after initial download
-- **Private**: Only embedding requests hit the API—your code stays on your machine
-
-## Quick Start
+idx uses OpenAI embeddings by default:
 
 ```bash
-# Install
-cargo install --path .
+idx config set-key sk-your-openai-key
+```
 
-# Set your OpenAI API key (for embeddings)
-idx config set-key sk-...
+### 3. Index your project
 
-# Index all dependencies in your project
+In any project with a lockfile:
+
+```bash
+cd your-project
 idx init
+```
 
-# Search
+This reads your `package.json`, `Cargo.toml`, `go.mod`, etc., downloads the source for each dependency, and builds a local index in `.index/`.
+
+### 4. Search
+
+```bash
 idx search "parse JSON from string"
 ```
 
-That's it. idx scans your manifests, downloads sources, parses them with tree-sitter, generates embeddings, and stores everything in `.index/`.
+### 5. (Optional) Set up MCP for Claude Code
 
-## Commands
+This is the main use case—let Claude search your actual dependencies instead of hallucinating.
 
-| Command | Description |
-|---------|-------------|
-| `idx init` | Scan manifests and index all dependencies |
-| `idx update` | Re-index packages with changed versions |
-| `idx watch` | Watch manifests and auto-reindex on changes |
-| `idx index <pkg>` | Index a specific package (e.g., `npm:lodash@4.17.21`) |
-| `idx search <query>` | Search indexed packages with natural language |
-| `idx list` | List all indexed packages |
-| `idx stats` | Show index statistics |
-| `idx status` | Compare index vs manifest dependencies |
-| `idx remove <pkg>` | Remove a package from the index |
-| `idx prune` | Remove packages no longer in manifests |
-| `idx clean` | Delete the entire `.index` directory |
-| `idx mcp` | Run as MCP server (for AI tools) |
-| `idx config` | Manage configuration |
-
-## Supported Ecosystems
-
-| Registry | Manifest | Notes |
-|----------|----------|-------|
-| npm | `package.json` | Uses package-lock.json for pinned versions |
-| crates | `Cargo.toml` | Uses Cargo.lock for pinned versions |
-| pypi | `pyproject.toml` | PEP 621 and Poetry formats |
-| maven | `pom.xml` | Resolves `${property}` references |
-| go | `go.mod` | Skips indirect dependencies |
-
-## MCP Integration
-
-idx runs as an [MCP](https://modelcontextprotocol.io) server, so AI tools like Claude Code can search your dependencies directly.
-
-### Setup
-
-Add to your Claude Code config (`~/.claude.json` or project `.mcp.json`):
+Add to `.mcp.json` in your project (or `~/.claude.json` globally):
 
 ```json
 {
@@ -87,70 +55,53 @@ Add to your Claude Code config (`~/.claude.json` or project `.mcp.json`):
 }
 ```
 
-### What This Enables
+Now Claude Code can search your indexed packages directly. Ask it "how do I use serde_json::Value?" and it'll return real code from your actual dependency versions.
 
-Once configured, Claude Code can:
+## Commands
 
-- **Search your dependencies**: "How does reqwest handle timeouts?" → searches your actual reqwest version
-- **Find real examples**: "Show me how to use serde_json::Value" → returns code from your indexed packages
-- **Index on demand**: "Index the tokio crate" → adds it to your local index
+| Command | Description |
+|---------|-------------|
+| `idx init` | Scan manifests and index all dependencies |
+| `idx update` | Re-index packages with changed versions |
+| `idx watch` | Watch manifests and auto-reindex on changes |
+| `idx index <pkg>` | Index a specific package (e.g., `npm:lodash@4.17.21`) |
+| `idx search <query>` | Search indexed packages |
+| `idx list` | List all indexed packages |
+| `idx stats` | Show index statistics |
+| `idx status` | Compare index vs manifest dependencies |
+| `idx remove <pkg>` | Remove a package from the index |
+| `idx prune` | Remove packages no longer in manifests |
+| `idx clean` | Delete the entire `.index` directory |
+| `idx mcp` | Run as MCP server |
+| `idx config` | Manage configuration |
 
-No more hallucinated APIs. No more wrong-version examples. Just real code from your real dependencies.
+## Supported Ecosystems
+
+| Registry | Manifest |
+|----------|----------|
+| npm | `package.json` / `package-lock.json` |
+| crates | `Cargo.toml` / `Cargo.lock` |
+| pypi | `pyproject.toml` |
+| maven | `pom.xml` |
+| go | `go.mod` |
 
 ## Configuration
 
 Config lives at `~/.config/idx/config.toml`.
 
-### API Key (Required)
-
-idx uses OpenAI's embedding API:
-
 ```bash
-idx config set-key sk-your-openai-key
+idx config set-key <key>      # Set API key
+idx config set-url <url>      # Set API base URL (for OpenRouter, etc.)
+idx config set-model <model>  # Set embedding model
+idx config show               # View current config
 ```
 
 ### Using OpenRouter
 
-Prefer [OpenRouter](https://openrouter.ai)?
-
 ```bash
 idx config set-url https://openrouter.ai/api
-idx config set-key sk-or-your-openrouter-key
+idx config set-key sk-or-your-key
 idx config set-model openai/text-embedding-3-small
-```
-
-### View Config
-
-```bash
-idx config show
-```
-
-## How It Works
-
-1. **Parse manifests** — Reads package.json, Cargo.toml, go.mod, etc.
-2. **Download sources** — Fetches from npm, crates.io, PyPI, Maven Central, Go proxy
-3. **Parse code** — Uses tree-sitter to extract functions, classes, types, docs
-4. **Generate embeddings** — Creates vectors via your configured embedding API
-5. **Store locally** — Saves to `.index/` using SQLite + LanceDB
-
-```
-.index/
-├── index.db      # SQLite: package metadata, chunk info
-├── vectors/      # LanceDB: vector embeddings
-└── blobs/        # Content-addressed source storage
-```
-
-## Installation
-
-```bash
-# From source
-cargo install --path .
-
-# Or via curl
-curl -fsSL https://raw.githubusercontent.com/noetic-sys/index/main/install.sh | sh
-
-# Or via Homebrew
-brew install noetic-sys/tap/idx
 ```
 
 ## License

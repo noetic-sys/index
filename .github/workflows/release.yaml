@@ -94,6 +94,7 @@ jobs:
           homebrew_owner: noetic-sys
           homebrew_tap: homebrew-tap
           formula_folder: Formula
+          formula_name: idx
           github_token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           install: bin.install Dir["idx-*"].first => "idx"
           test: system "#{bin}/idx", "--version"
