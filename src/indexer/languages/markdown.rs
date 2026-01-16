@@ -59,12 +59,11 @@ impl MarkdownParser {
         chunk_index: &mut usize,
     ) {
         // Look for fenced code blocks
-        if node.kind() == "fenced_code_block" {
-            if let Some(chunk) = self.extract_code_block(node, source, file_path, *chunk_index) {
+        if node.kind() == "fenced_code_block"
+            && let Some(chunk) = self.extract_code_block(node, source, file_path, *chunk_index) {
                 chunks.push(chunk);
                 *chunk_index += 1;
             }
-        }
 
         // Recurse into children
         let mut cursor = node.walk();

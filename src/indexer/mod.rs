@@ -12,8 +12,6 @@ mod language;
 mod languages;
 pub mod workspace;
 
-pub use chunk::{ChunkBuilder, CodeChunk};
-pub use error::IndexerError;
-pub use language::{Language, LanguageParser};
+pub use chunk::CodeChunk;
+pub use language::Language;
 pub use languages::get_parser;
-pub use workspace::{DetectedPackage, analyze_repo};

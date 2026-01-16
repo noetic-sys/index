@@ -42,11 +42,10 @@ fn parse_pyproject(path: &Path) -> Result<Vec<Dependency>> {
         .and_then(|d| d.as_array())
     {
         for dep in project_deps {
-            if let Some(s) = dep.as_str() {
-                if let Some(d) = parse_pep508(s) {
+            if let Some(s) = dep.as_str()
+                && let Some(d) = parse_pep508(s) {
                     deps.push(d);
                 }
-            }
         }
     }
 

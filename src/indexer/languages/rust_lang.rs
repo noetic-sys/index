@@ -188,12 +188,11 @@ impl RustParser {
             if child.kind() == "declaration_list" {
                 let mut inner_cursor = child.walk();
                 for item in child.children(&mut inner_cursor) {
-                    if item.kind() == "function_item" {
-                        if let Some(mut chunk) = self.extract_function(item, source, file_path) {
+                    if item.kind() == "function_item"
+                        && let Some(mut chunk) = self.extract_function(item, source, file_path) {
                             chunk.chunk_type = ChunkType::Method;
                             chunks.push(chunk);
                         }
-                    }
                 }
             }
         }

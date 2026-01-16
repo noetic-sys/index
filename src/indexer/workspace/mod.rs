@@ -10,5 +10,4 @@ mod python;
 mod types;
 
 pub use analyze::analyze_repo;
-pub use patterns::should_skip_dir;
 pub use types::DetectedPackage;

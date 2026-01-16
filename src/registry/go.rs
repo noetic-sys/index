@@ -7,7 +7,7 @@ use serde::Deserialize;
 use tracing::debug;
 use zip::ZipArchive;
 
-use super::client::{PackageFile, PackageInfo, RegistryClient, VersionInfo};
+use super::client::{PackageFile, PackageInfo, RegistryClient};
 use super::error::RegistryError;
 
 const GO_PROXY: &str = "https://proxy.golang.org";
@@ -212,11 +212,10 @@ fn extract_module_zip(data: &[u8]) -> Result<Vec<PackageFile>, RegistryError> {
 fn strip_module_prefix(path: &str) -> String {
     // Format is: module@version/path/to/file.go
     // Find first / after @ and strip everything before it
-    if let Some(at_pos) = path.find('@') {
-        if let Some(slash_pos) = path[at_pos..].find('/') {
+    if let Some(at_pos) = path.find('@')
+        && let Some(slash_pos) = path[at_pos..].find('/') {
             return path[at_pos + slash_pos + 1..].to_string();
         }
-    }
     path.to_string()
 }
 

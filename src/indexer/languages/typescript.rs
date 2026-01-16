@@ -321,7 +321,7 @@ impl TypeScriptParser {
 
     fn extract_function_signature(&self, node: Node, source: &str) -> Option<String> {
         // Get everything up to and including the parameter list
-        let name = node.child_by_field_name("name")?;
+        let _name = node.child_by_field_name("name")?;
         let params = node.child_by_field_name("parameters")?;
 
         let start = node.start_byte();
@@ -398,11 +398,10 @@ impl TypeScriptParser {
                 return Visibility::Public;
             }
             // Check grandparent for `export default`
-            if let Some(grandparent) = parent.parent() {
-                if grandparent.kind() == "export_statement" {
+            if let Some(grandparent) = parent.parent()
+                && grandparent.kind() == "export_statement" {
                     return Visibility::Public;
                 }
-            }
         }
 
         // Check if there's an export keyword in the node text

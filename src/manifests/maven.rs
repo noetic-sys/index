@@ -61,11 +61,10 @@ fn parse_properties(content: &str) -> std::collections::HashMap<String, String> 
             Ok(Event::Text(e)) if current_prop.is_some() => {
                 if let Ok(text) = e.unescape() {
                     let text = text.trim();
-                    if !text.is_empty() {
-                        if let Some(ref prop) = current_prop {
+                    if !text.is_empty()
+                        && let Some(ref prop) = current_prop {
                             props.insert(prop.clone(), text.to_string());
                         }
-                    }
                 }
             }
             Ok(Event::Eof) => break,
@@ -136,8 +135,8 @@ fn parse_dependencies(
                         _ => true,
                     };
 
-                    if include {
-                        if let (Some(g), Some(a), Some(v)) = (&group_id, &artifact_id, &version) {
+                    if include
+                        && let (Some(g), Some(a), Some(v)) = (&group_id, &artifact_id, &version) {
                             // Resolve property references like ${guava.version}
                             let resolved_version = resolve_property(v, properties);
 
@@ -147,7 +146,6 @@ fn parse_dependencies(
                                 version: resolved_version,
                             });
                         }
-                    }
                     in_dependency = false;
                 }
                 current_field = None;

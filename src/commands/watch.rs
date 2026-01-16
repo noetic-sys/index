@@ -71,10 +71,10 @@ impl WatchCmd {
         }
 
         // Also watch workspace members if Cargo workspace
-        if let Ok(content) = std::fs::read_to_string(self.path.join("Cargo.toml")) {
-            if let Ok(toml) = content.parse::<toml::Value>() {
-                if let Some(workspace) = toml.get("workspace") {
-                    if let Some(members) = workspace.get("members").and_then(|m| m.as_array()) {
+        if let Ok(content) = std::fs::read_to_string(self.path.join("Cargo.toml"))
+            && let Ok(toml) = content.parse::<toml::Value>()
+                && let Some(workspace) = toml.get("workspace")
+                    && let Some(members) = workspace.get("members").and_then(|m| m.as_array()) {
                         for member in members {
                             if let Some(member_path) = member.as_str() {
                                 let member_toml = self.path.join(member_path).join("Cargo.toml");
@@ -86,9 +86,6 @@ impl WatchCmd {
                             }
                         }
                     }
-                }
-            }
-        }
 
         // Debounce and process changes
         let mut last_sync = std::time::Instant::now();

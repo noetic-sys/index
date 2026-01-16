@@ -61,7 +61,7 @@ fn has_source_files(root_path: &str, registry: Registry, files: &[(String, Strin
     })
 }
 
-fn collect_manifests<'a>(files: &'a [(String, String)]) -> Vec<(&'a str, &'a str, Registry)> {
+fn collect_manifests(files: &[(String, String)]) -> Vec<(&str, &str, Registry)> {
     files
         .iter()
         .filter_map(|(path, content)| {
@@ -128,11 +128,10 @@ fn is_member(path: &str, members: &HashSet<String>) -> bool {
     for pattern in members {
         if pattern.ends_with("/*") {
             let prefix = pattern.trim_end_matches("/*");
-            if let Some(rest) = path.strip_prefix(prefix) {
-                if rest.starts_with('/') && !rest[1..].contains('/') {
+            if let Some(rest) = path.strip_prefix(prefix)
+                && rest.starts_with('/') && !rest[1..].contains('/') {
                     return true;
                 }
-            }
         }
     }
     false

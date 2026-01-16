@@ -71,7 +71,9 @@ impl Default for RateLimit {
 /// | Enterprise | ✓             | Unlimited        | ✓ + SLA          |
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[derive(Default)]
 pub enum Plan {
+    #[default]
     Free,
     Starter,
     Growth { max_packages: u32 },
@@ -93,8 +95,3 @@ impl Plan {
     }
 }
 
-impl Default for Plan {
-    fn default() -> Self {
-        Plan::Free
-    }
-}

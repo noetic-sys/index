@@ -119,6 +119,7 @@ impl std::str::FromStr for Registry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum Language {
     TypeScript,
     JavaScript,
@@ -127,14 +128,10 @@ pub enum Language {
     Go,
     Java,
     Kotlin,
+    #[default]
     Unknown,
 }
 
-impl Default for Language {
-    fn default() -> Self {
-        Language::Unknown
-    }
-}
 
 /// A package that has been indexed.
 #[derive(Debug, Clone, Serialize, Deserialize)]

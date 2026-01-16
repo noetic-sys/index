@@ -14,12 +14,8 @@ mod storage;
 mod vector;
 
 pub use config::LocalConfig;
-pub use db::LocalDb;
 pub use indexer::LocalIndexer;
-pub use models::*;
 pub use search::LocalSearch;
-pub use storage::LocalStorage;
-pub use vector::VectorStore;
 
 use std::path::{Path, PathBuf};
 

@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 
 const CONFIG_DIR: &str = "idx";
