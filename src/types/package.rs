@@ -132,7 +132,6 @@ pub enum Language {
     Unknown,
 }
 
-
 /// A package that has been indexed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Package {

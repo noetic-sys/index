@@ -1,6 +1,5 @@
 //! Local MCP server implementation.
 
-use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -70,7 +69,7 @@ pub struct IndexPackageInput {
 #[tool_router]
 impl LocalMcpServer {
     /// Create a new local MCP server.
-    pub async fn new(index_dir: &PathBuf) -> Result<Self> {
+    pub async fn new(index_dir: &std::path::Path) -> Result<Self> {
         let search = LocalSearch::new(index_dir).await?;
         let indexer = Arc::new(LocalIndexer::new(index_dir).await?);
         Ok(Self {
@@ -261,7 +260,7 @@ impl ServerHandler for LocalMcpServer {
 }
 
 /// Run the local MCP server over stdio.
-pub async fn run_local(index_dir: &PathBuf) -> Result<()> {
+pub async fn run_local(index_dir: &std::path::Path) -> Result<()> {
     let server = LocalMcpServer::new(index_dir).await?;
     let service = server.serve(stdio()).await?;
     service.waiting().await?;

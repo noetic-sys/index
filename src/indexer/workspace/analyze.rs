@@ -129,9 +129,11 @@ fn is_member(path: &str, members: &HashSet<String>) -> bool {
         if pattern.ends_with("/*") {
             let prefix = pattern.trim_end_matches("/*");
             if let Some(rest) = path.strip_prefix(prefix)
-                && rest.starts_with('/') && !rest[1..].contains('/') {
-                    return true;
-                }
+                && rest.starts_with('/')
+                && !rest[1..].contains('/')
+            {
+                return true;
+            }
         }
     }
     false

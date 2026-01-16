@@ -4,6 +4,8 @@
 //! - `db.sqlite` - package metadata and vector embeddings
 //! - `blobs/` - code chunks (content-addressed)
 
+#![allow(dead_code)]
+
 mod config;
 mod db;
 mod indexer;

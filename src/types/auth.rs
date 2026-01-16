@@ -76,8 +76,12 @@ pub enum Plan {
     #[default]
     Free,
     Starter,
-    Growth { max_packages: u32 },
-    Enterprise { contract_id: String },
+    Growth {
+        max_packages: u32,
+    },
+    Enterprise {
+        contract_id: String,
+    },
 }
 
 impl Plan {
@@ -94,4 +98,3 @@ impl Plan {
         }
     }
 }
-

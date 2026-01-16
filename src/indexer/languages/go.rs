@@ -123,9 +123,10 @@ impl GoParser {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "type_spec"
-                && let Some(chunk) = self.extract_type_spec(child, source, file_path) {
-                    chunks.push(chunk);
-                }
+                && let Some(chunk) = self.extract_type_spec(child, source, file_path)
+            {
+                chunks.push(chunk);
+            }
         }
     }
 

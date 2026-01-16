@@ -18,9 +18,9 @@ pub fn parse_gowork(content: &str) -> Vec<String> {
             in_block = false;
         } else if trimmed.starts_with("use (") || trimmed == "use (" {
             in_block = true;
-        } else if trimmed.starts_with("use ") {
+        } else if let Some(rest) = trimmed.strip_prefix("use ") {
             // Single use: use ./cmd/foo
-            let path = trimmed[4..].trim().trim_start_matches("./");
+            let path = rest.trim().trim_start_matches("./");
             if !path.is_empty() {
                 members.push(path.to_string());
             }

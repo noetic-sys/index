@@ -74,13 +74,9 @@ impl PythonParser {
         let signature = self.extract_function_signature(node, source);
         let visibility = self.detect_visibility(&name);
 
-        // Check if async
-        let is_async = node.child(0).map(|n| n.kind() == "async").unwrap_or(false);
-        let chunk_type = if is_async {
-            ChunkType::Function // Could add AsyncFunction if needed
-        } else {
-            ChunkType::Function
-        };
+        // Could differentiate async functions in the future
+        let _is_async = node.child(0).map(|n| n.kind() == "async").unwrap_or(false);
+        let chunk_type = ChunkType::Function;
 
         ChunkBuilder::new()
             .chunk_type(chunk_type)

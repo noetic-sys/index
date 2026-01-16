@@ -6,6 +6,8 @@
 //! - Chunking strategy for semantic search
 //! - Workspace detection for monorepos
 
+#![allow(dead_code)]
+
 mod chunk;
 mod error;
 mod language;

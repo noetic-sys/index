@@ -399,9 +399,10 @@ impl TypeScriptParser {
             }
             // Check grandparent for `export default`
             if let Some(grandparent) = parent.parent()
-                && grandparent.kind() == "export_statement" {
-                    return Visibility::Public;
-                }
+                && grandparent.kind() == "export_statement"
+            {
+                return Visibility::Public;
+            }
         }
 
         // Check if there's an export keyword in the node text

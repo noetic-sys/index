@@ -9,5 +9,4 @@ mod patterns;
 mod python;
 mod types;
 
-pub use analyze::analyze_repo;
 pub use types::DetectedPackage;

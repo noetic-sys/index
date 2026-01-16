@@ -13,6 +13,8 @@
 //! let files: Vec<PackageFile> = client.download_source("lodash", "4.17.21").await?;
 //! ```
 
+#![allow(dead_code)]
+
 mod client;
 mod crates_io;
 mod error;

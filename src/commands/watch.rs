@@ -73,19 +73,20 @@ impl WatchCmd {
         // Also watch workspace members if Cargo workspace
         if let Ok(content) = std::fs::read_to_string(self.path.join("Cargo.toml"))
             && let Ok(toml) = content.parse::<toml::Value>()
-                && let Some(workspace) = toml.get("workspace")
-                    && let Some(members) = workspace.get("members").and_then(|m| m.as_array()) {
-                        for member in members {
-                            if let Some(member_path) = member.as_str() {
-                                let member_toml = self.path.join(member_path).join("Cargo.toml");
-                                if member_toml.exists() {
-                                    watcher
-                                        .watch(&member_toml, RecursiveMode::NonRecursive)
-                                        .ok();
-                                }
-                            }
-                        }
+            && let Some(workspace) = toml.get("workspace")
+            && let Some(members) = workspace.get("members").and_then(|m| m.as_array())
+        {
+            for member in members {
+                if let Some(member_path) = member.as_str() {
+                    let member_toml = self.path.join(member_path).join("Cargo.toml");
+                    if member_toml.exists() {
+                        watcher
+                            .watch(&member_toml, RecursiveMode::NonRecursive)
+                            .ok();
                     }
+                }
+            }
+        }
 
         // Debounce and process changes
         let mut last_sync = std::time::Instant::now();
@@ -113,7 +114,7 @@ impl WatchCmd {
         Ok(())
     }
 
-    async fn sync_index(&self, index_dir: &PathBuf) -> Result<()> {
+    async fn sync_index(&self, index_dir: &std::path::Path) -> Result<()> {
         let indexer = Arc::new(LocalIndexer::new(index_dir).await?);
 
         // Get indexed packages

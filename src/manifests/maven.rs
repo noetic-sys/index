@@ -62,9 +62,10 @@ fn parse_properties(content: &str) -> std::collections::HashMap<String, String> 
                 if let Ok(text) = e.unescape() {
                     let text = text.trim();
                     if !text.is_empty()
-                        && let Some(ref prop) = current_prop {
-                            props.insert(prop.clone(), text.to_string());
-                        }
+                        && let Some(ref prop) = current_prop
+                    {
+                        props.insert(prop.clone(), text.to_string());
+                    }
                 }
             }
             Ok(Event::Eof) => break,
@@ -136,16 +137,17 @@ fn parse_dependencies(
                     };
 
                     if include
-                        && let (Some(g), Some(a), Some(v)) = (&group_id, &artifact_id, &version) {
-                            // Resolve property references like ${guava.version}
-                            let resolved_version = resolve_property(v, properties);
+                        && let (Some(g), Some(a), Some(v)) = (&group_id, &artifact_id, &version)
+                    {
+                        // Resolve property references like ${guava.version}
+                        let resolved_version = resolve_property(v, properties);
 
-                            deps.push(Dependency {
-                                registry: "maven".to_string(),
-                                name: format!("{}:{}", g, a),
-                                version: resolved_version,
-                            });
-                        }
+                        deps.push(Dependency {
+                            registry: "maven".to_string(),
+                            name: format!("{}:{}", g, a),
+                            version: resolved_version,
+                        });
+                    }
                     in_dependency = false;
                 }
                 current_field = None;

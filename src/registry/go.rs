@@ -213,9 +213,10 @@ fn strip_module_prefix(path: &str) -> String {
     // Format is: module@version/path/to/file.go
     // Find first / after @ and strip everything before it
     if let Some(at_pos) = path.find('@')
-        && let Some(slash_pos) = path[at_pos..].find('/') {
-            return path[at_pos + slash_pos + 1..].to_string();
-        }
+        && let Some(slash_pos) = path[at_pos..].find('/')
+    {
+        return path[at_pos + slash_pos + 1..].to_string();
+    }
     path.to_string()
 }
 

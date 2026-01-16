@@ -43,9 +43,10 @@ fn parse_pyproject(path: &Path) -> Result<Vec<Dependency>> {
     {
         for dep in project_deps {
             if let Some(s) = dep.as_str()
-                && let Some(d) = parse_pep508(s) {
-                    deps.push(d);
-                }
+                && let Some(d) = parse_pep508(s)
+            {
+                deps.push(d);
+            }
         }
     }
 

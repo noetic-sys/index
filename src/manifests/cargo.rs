@@ -81,18 +81,20 @@ fn collect_direct_deps(dir: &Path) -> Result<HashMap<String, String>> {
 
     // Check for workspace members
     if let Some(workspace) = toml.get("workspace")
-        && let Some(members) = workspace.get("members").and_then(|m| m.as_array()) {
-            for member in members {
-                if let Some(member_path) = member.as_str() {
-                    let member_toml = dir.join(member_path).join("Cargo.toml");
-                    if member_toml.exists()
-                        && let Ok(content) = std::fs::read_to_string(&member_toml)
-                            && let Ok(toml) = content.parse::<toml::Value>() {
-                                all_deps.extend(extract_deps(&toml, &workspace_versions));
-                            }
+        && let Some(members) = workspace.get("members").and_then(|m| m.as_array())
+    {
+        for member in members {
+            if let Some(member_path) = member.as_str() {
+                let member_toml = dir.join(member_path).join("Cargo.toml");
+                if member_toml.exists()
+                    && let Ok(content) = std::fs::read_to_string(&member_toml)
+                    && let Ok(toml) = content.parse::<toml::Value>()
+                {
+                    all_deps.extend(extract_deps(&toml, &workspace_versions));
                 }
             }
         }
+    }
 
     Ok(all_deps)
 }
