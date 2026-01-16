@@ -50,9 +50,7 @@ impl LocalStorage {
     /// Get a blob by storage key.
     pub async fn get(&self, key: &str) -> Result<Vec<u8>> {
         let path = self.blobs_dir.join(key);
-        tokio::fs::read(&path)
-            .await
-            .context("Blob not found")
+        tokio::fs::read(&path).await.context("Blob not found")
     }
 
     /// Check if a blob exists.
@@ -95,7 +93,10 @@ mod tests {
         let storage = LocalStorage::new(dir.path().join("blobs")).await.unwrap();
 
         let content = b"hello world";
-        let key = storage.put("npm", "lodash", "4.17.21", content).await.unwrap();
+        let key = storage
+            .put("npm", "lodash", "4.17.21", content)
+            .await
+            .unwrap();
 
         assert!(key.starts_with("npm/lodash/4.17.21/"));
         assert!(storage.exists(&key).await);
@@ -121,13 +122,22 @@ mod tests {
         let dir = tempdir().unwrap();
         let storage = LocalStorage::new(dir.path().join("blobs")).await.unwrap();
 
-        let key1 = storage.put("npm", "react", "18.0.0", b"chunk1").await.unwrap();
-        let key2 = storage.put("npm", "react", "18.0.0", b"chunk2").await.unwrap();
+        let key1 = storage
+            .put("npm", "react", "18.0.0", b"chunk1")
+            .await
+            .unwrap();
+        let key2 = storage
+            .put("npm", "react", "18.0.0", b"chunk2")
+            .await
+            .unwrap();
 
         assert!(storage.exists(&key1).await);
         assert!(storage.exists(&key2).await);
 
-        storage.delete_package("npm", "react", "18.0.0").await.unwrap();
+        storage
+            .delete_package("npm", "react", "18.0.0")
+            .await
+            .unwrap();
 
         assert!(!storage.exists(&key1).await);
         assert!(!storage.exists(&key2).await);

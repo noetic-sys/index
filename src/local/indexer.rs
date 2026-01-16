@@ -8,20 +8,20 @@
 
 use std::path::Path;
 
-use anyhow::{Context, Result};
-use crate::indexer::{get_parser, CodeChunk, Language};
-use crate::registry::{RegistryClients, PackageFile};
+use crate::indexer::{CodeChunk, Language, get_parser};
+use crate::registry::{PackageFile, RegistryClients};
 use crate::types::Registry;
+use anyhow::{Context, Result};
 use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 use tracing::info;
 use uuid::Uuid;
 
+use super::LocalConfig;
 use super::db::LocalDb;
 use super::models::{CreateChunk, CreatePackage, VectorRecord};
 use super::storage::LocalStorage;
 use super::vector::VectorStore;
-use super::LocalConfig;
 
 /// Local indexer service.
 pub struct LocalIndexer {
@@ -47,7 +47,12 @@ impl LocalIndexer {
         let vectors = VectorStore::open(&index_dir.join("vectors")).await?;
         let config = LocalConfig::load()?;
 
-        Ok(Self { db, storage, vectors, config })
+        Ok(Self {
+            db,
+            storage,
+            vectors,
+            config,
+        })
     }
 
     /// Index a package from a registry.
@@ -60,7 +65,11 @@ impl LocalIndexer {
         info!(registry = %registry, name, version, "indexing package");
 
         // Check if already indexed
-        if let Some(existing) = self.db.find_package(registry.as_str(), name, version).await? {
+        if let Some(existing) = self
+            .db
+            .find_package(registry.as_str(), name, version)
+            .await?
+        {
             info!("package already indexed");
             return Ok(IndexResult {
                 package_id: existing.id,
@@ -76,12 +85,15 @@ impl LocalIndexer {
         let files = client.download_source(name, version).await?;
 
         // Create package record
-        let package_id = self.db.upsert_package(&CreatePackage {
-            registry: registry.as_str().to_string(),
-            name: name.to_string(),
-            version: version.to_string(),
-            description: pkg_info.description,
-        }).await?;
+        let package_id = self
+            .db
+            .upsert_package(&CreatePackage {
+                registry: registry.as_str().to_string(),
+                name: name.to_string(),
+                version: version.to_string(),
+                description: pkg_info.description,
+            })
+            .await?;
 
         // Parse files
         info!(files = files.len(), "parsing files");
@@ -113,12 +125,10 @@ impl LocalIndexer {
             let content_hash = hex::encode(Sha256::digest(chunk.code.as_bytes()));
 
             // Store blob
-            let storage_key = self.storage.put(
-                registry.as_str(),
-                name,
-                version,
-                chunk.code.as_bytes(),
-            ).await?;
+            let storage_key = self
+                .storage
+                .put(registry.as_str(), name, version, chunk.code.as_bytes())
+                .await?;
 
             // Prepare vector record
             vector_records.push(VectorRecord {
@@ -184,13 +194,17 @@ impl LocalIndexer {
         let path_lower = path.to_lowercase();
 
         const SKIP_DIRS: &[&str] = &[
-            "node_modules/", "__pycache__/", ".git/", "target/",
-            "dist/", "build/", ".next/", "coverage/",
+            "node_modules/",
+            "__pycache__/",
+            ".git/",
+            "target/",
+            "dist/",
+            "build/",
+            ".next/",
+            "coverage/",
         ];
 
-        const SKIP_PATTERNS: &[&str] = &[
-            ".min.js", ".bundle.js", ".map", ".d.ts", ".lock", ".env",
-        ];
+        const SKIP_PATTERNS: &[&str] = &[".min.js", ".bundle.js", ".map", ".d.ts", ".lock", ".env"];
 
         for dir in SKIP_DIRS {
             if path_lower.contains(dir) {
@@ -209,7 +223,9 @@ impl LocalIndexer {
 
     /// Generate embeddings for chunks.
     async fn generate_embeddings(&self, chunks: &[CodeChunk]) -> Result<Vec<Vec<f32>>> {
-        let api_key = self.config.openai_api_key
+        let api_key = self
+            .config
+            .openai_api_key
             .as_ref()
             .context("OpenAI API key not configured. Run: idx config set-key")?;
 

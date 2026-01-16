@@ -9,8 +9,8 @@ mod registry;
 mod types;
 
 use anyhow::Result;
-use cli::Cli;
 use clap::Parser;
+use cli::Cli;
 
 #[tokio::main]
 async fn main() -> Result<()> {

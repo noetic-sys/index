@@ -17,8 +17,8 @@ pub struct RemoveCmd {
 
 impl RemoveCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir = local::get_index_dir()
-            .context("No .index directory found. Run `idx init` first.")?;
+        let index_dir =
+            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
 
         let indexer = LocalIndexer::new(&index_dir).await?;
 
@@ -30,7 +30,10 @@ impl RemoveCmd {
             .db()
             .find_package(&registry, &name, &version)
             .await?
-            .context(format!("Package not found: {}:{}@{}", registry, name, version))?;
+            .context(format!(
+                "Package not found: {}:{}@{}",
+                registry, name, version
+            ))?;
 
         if !self.yes {
             println!("Remove {}:{}@{}?", registry, name, version);
@@ -55,7 +58,10 @@ impl RemoveCmd {
         }
 
         // Delete from blob storage
-        indexer.storage().delete_package(&registry, &name, &version).await?;
+        indexer
+            .storage()
+            .delete_package(&registry, &name, &version)
+            .await?;
 
         println!("Removed {}:{}@{}", registry, name, version);
 

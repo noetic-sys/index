@@ -39,16 +39,27 @@ pub struct PackageFile {
 /// to provide package fetching capabilities.
 pub trait RegistryClient: Send + Sync {
     /// Get package metadata.
-    fn get_package(&self, name: &str) -> impl Future<Output = Result<PackageInfo, RegistryError>> + Send;
+    fn get_package(
+        &self,
+        name: &str,
+    ) -> impl Future<Output = Result<PackageInfo, RegistryError>> + Send;
 
     /// Get version metadata.
-    fn get_version(&self, name: &str, version: &str) -> impl Future<Output = Result<VersionInfo, RegistryError>> + Send;
+    fn get_version(
+        &self,
+        name: &str,
+        version: &str,
+    ) -> impl Future<Output = Result<VersionInfo, RegistryError>> + Send;
 
     /// Download and extract package source files.
     ///
     /// Returns a list of (path, content) pairs for all source files.
     /// Filters out non-source files (binaries, etc.).
-    fn download_source(&self, name: &str, version: &str) -> impl Future<Output = Result<Vec<PackageFile>, RegistryError>> + Send;
+    fn download_source(
+        &self,
+        name: &str,
+        version: &str,
+    ) -> impl Future<Output = Result<Vec<PackageFile>, RegistryError>> + Send;
 }
 
 use std::future::Future;

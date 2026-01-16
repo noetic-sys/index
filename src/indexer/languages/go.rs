@@ -1,5 +1,5 @@
-use tree_sitter::{Node, Parser};
 use crate::types::{ChunkType, Visibility};
+use tree_sitter::{Node, Parser};
 
 use crate::indexer::chunk::{ChunkBuilder, CodeChunk};
 use crate::indexer::error::IndexerError;
@@ -28,7 +28,11 @@ impl GoParser {
         Ok(parser)
     }
 
-    fn extract_chunks(&self, source: &str, file_path: &str) -> Result<Vec<CodeChunk>, IndexerError> {
+    fn extract_chunks(
+        &self,
+        source: &str,
+        file_path: &str,
+    ) -> Result<Vec<CodeChunk>, IndexerError> {
         let mut parser = Self::create_parser()?;
         let tree = parser
             .parse(source, None)
@@ -39,13 +43,7 @@ impl GoParser {
         Ok(chunks)
     }
 
-    fn visit_node(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-        chunks: &mut Vec<CodeChunk>,
-    ) {
+    fn visit_node(&self, node: Node, source: &str, file_path: &str, chunks: &mut Vec<CodeChunk>) {
         match node.kind() {
             "function_declaration" => {
                 if let Some(chunk) = self.extract_function(node, source, file_path) {
@@ -69,12 +67,7 @@ impl GoParser {
         }
     }
 
-    fn extract_function(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-    ) -> Option<CodeChunk> {
+    fn extract_function(&self, node: Node, source: &str, file_path: &str) -> Option<CodeChunk> {
         let name = self.get_child_text(node, "name", source)?;
         let code = node.utf8_text(source.as_bytes()).ok()?;
         let doc = self.extract_doc_comment(node, source);
@@ -97,12 +90,7 @@ impl GoParser {
             .build()
     }
 
-    fn extract_method(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-    ) -> Option<CodeChunk> {
+    fn extract_method(&self, node: Node, source: &str, file_path: &str) -> Option<CodeChunk> {
         let name = self.get_child_text(node, "name", source)?;
         let code = node.utf8_text(source.as_bytes()).ok()?;
         let doc = self.extract_doc_comment(node, source);
@@ -142,12 +130,7 @@ impl GoParser {
         }
     }
 
-    fn extract_type_spec(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-    ) -> Option<CodeChunk> {
+    fn extract_type_spec(&self, node: Node, source: &str, file_path: &str) -> Option<CodeChunk> {
         let name = self.get_child_text(node, "name", source)?;
         let code = node.utf8_text(source.as_bytes()).ok()?;
         let doc = self.extract_doc_comment(node.parent()?, source);
@@ -155,9 +138,16 @@ impl GoParser {
 
         // Determine if struct or interface
         let mut cursor = node.walk();
-        let chunk_type = node.children(&mut cursor)
+        let chunk_type = node
+            .children(&mut cursor)
             .find(|c| c.kind() == "struct_type" || c.kind() == "interface_type")
-            .map(|c| if c.kind() == "interface_type" { ChunkType::Interface } else { ChunkType::Type })
+            .map(|c| {
+                if c.kind() == "interface_type" {
+                    ChunkType::Interface
+                } else {
+                    ChunkType::Type
+                }
+            })
             .unwrap_or(ChunkType::Type);
 
         ChunkBuilder::new()
@@ -201,12 +191,20 @@ impl GoParser {
 
     fn get_child_text(&self, node: Node, field: &str, source: &str) -> Option<String> {
         let child = node.child_by_field_name(field)?;
-        child.utf8_text(source.as_bytes()).ok().map(|s| s.to_string())
+        child
+            .utf8_text(source.as_bytes())
+            .ok()
+            .map(|s| s.to_string())
     }
 
     /// Go visibility: Capitalized = exported, lowercase = unexported
     fn detect_visibility(&self, name: &str) -> Visibility {
-        if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+        if name
+            .chars()
+            .next()
+            .map(|c| c.is_uppercase())
+            .unwrap_or(false)
+        {
             Visibility::Public
         } else {
             Visibility::Internal

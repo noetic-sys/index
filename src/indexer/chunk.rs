@@ -148,7 +148,13 @@ impl ChunkBuilder {
         self
     }
 
-    pub fn location(mut self, start_line: u32, end_line: u32, start_byte: usize, end_byte: usize) -> Self {
+    pub fn location(
+        mut self,
+        start_line: u32,
+        end_line: u32,
+        start_byte: usize,
+        end_byte: usize,
+    ) -> Self {
         self.start_line = Some(start_line);
         self.end_line = Some(end_line);
         self.start_byte = Some(start_byte);

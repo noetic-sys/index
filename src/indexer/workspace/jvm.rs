@@ -1,7 +1,7 @@
 //! JVM workspace parsing (Maven, Gradle).
 
-use quick_xml::events::Event;
 use quick_xml::Reader;
+use quick_xml::events::Event;
 
 /// Parse workspace members from pom.xml (Maven modules).
 pub fn parse_workspace(content: &str) -> Vec<String> {

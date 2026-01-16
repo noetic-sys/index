@@ -201,7 +201,10 @@ fn extract_module_zip(data: &[u8]) -> Result<Vec<PackageFile>, RegistryError> {
         }
     }
 
-    debug!(file_count = files.len(), "extracted source files from module zip");
+    debug!(
+        file_count = files.len(),
+        "extracted source files from module zip"
+    );
     Ok(files)
 }
 
@@ -256,10 +259,7 @@ mod tests {
             escape_module("github.com/gin-gonic/gin"),
             "github.com/gin-gonic/gin"
         );
-        assert_eq!(
-            escape_module("golang.org/x/sync"),
-            "golang.org/x/sync"
-        );
+        assert_eq!(escape_module("golang.org/x/sync"), "golang.org/x/sync");
     }
 
     #[test]
@@ -302,7 +302,10 @@ mod tests {
     #[ignore]
     async fn test_get_package_gin() {
         let client = GoClient::new();
-        let pkg = client.get_package("github.com/gin-gonic/gin").await.unwrap();
+        let pkg = client
+            .get_package("github.com/gin-gonic/gin")
+            .await
+            .unwrap();
         assert_eq!(pkg.name, "github.com/gin-gonic/gin");
         assert!(!pkg.versions.is_empty());
     }

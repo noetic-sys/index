@@ -4,16 +4,19 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::types::Registry;
 use anyhow::{Context, Result};
 use clap::Args;
 use futures::stream::{self, StreamExt};
-use crate::types::Registry;
 
 use crate::local::{self, LocalIndexer};
-use crate::manifests::{parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps, parse_python_deps, Dependency};
+use crate::manifests::{
+    Dependency, parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps,
+    parse_python_deps,
+};
 
 #[derive(Args)]
 pub struct InitCmd {
@@ -43,13 +46,11 @@ impl InitCmd {
         }
 
         // Find or create .index/ directory
-        let index_dir = local::get_index_dir().unwrap_or_else(|| {
-            self.path.join(local::INDEX_DIR_NAME)
-        });
+        let index_dir =
+            local::get_index_dir().unwrap_or_else(|| self.path.join(local::INDEX_DIR_NAME));
 
         if !index_dir.exists() {
-            std::fs::create_dir_all(&index_dir)
-                .context("Failed to create .index directory")?;
+            std::fs::create_dir_all(&index_dir).context("Failed to create .index directory")?;
             println!("Created {}", index_dir.display());
         }
 
@@ -105,12 +106,18 @@ impl InitCmd {
                     }
                 };
 
-                match indexer.index_package(registry, &dep.name, &dep.version).await {
+                match indexer
+                    .index_package(registry, &dep.name, &dep.version)
+                    .await
+                {
                     Ok(result) => {
                         if result.chunks_indexed > 0 {
                             indexed.fetch_add(1, Ordering::Relaxed);
                             if verbose {
-                                eprintln!("  {}@{} -> indexed ({} chunks)", dep.name, dep.version, result.chunks_indexed);
+                                eprintln!(
+                                    "  {}@{} -> indexed ({} chunks)",
+                                    dep.name, dep.version, result.chunks_indexed
+                                );
                             }
                         } else {
                             skipped.fetch_add(1, Ordering::Relaxed);
@@ -190,7 +197,8 @@ impl InitCmd {
         // Dedupe by (registry, name) - keep first occurrence
         let mut seen: HashMap<(String, String), usize> = HashMap::new();
         for (i, dep) in all_deps.iter().enumerate() {
-            seen.entry((dep.registry.clone(), dep.name.clone())).or_insert(i);
+            seen.entry((dep.registry.clone(), dep.name.clone()))
+                .or_insert(i);
         }
 
         let mut indices: Vec<_> = seen.into_values().collect();

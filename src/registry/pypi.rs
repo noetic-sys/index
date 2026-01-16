@@ -116,7 +116,12 @@ impl RegistryClient for PypiClient {
             .urls
             .iter()
             .find(|r| r.packagetype == "sdist")
-            .or_else(|| pypi_ver.urls.iter().find(|r| r.packagetype == "bdist_wheel"))
+            .or_else(|| {
+                pypi_ver
+                    .urls
+                    .iter()
+                    .find(|r| r.packagetype == "bdist_wheel")
+            })
             .map(|r| r.url.clone())
             .ok_or_else(|| RegistryError::Archive("no source distribution found".into()))?;
 
@@ -148,8 +153,7 @@ impl RegistryClient for PypiClient {
         let bytes = response.bytes().await?;
 
         // PyPI can serve .tar.gz or .whl (zip) files
-        if version_info.tarball_url.ends_with(".whl")
-            || version_info.tarball_url.ends_with(".zip")
+        if version_info.tarball_url.ends_with(".whl") || version_info.tarball_url.ends_with(".zip")
         {
             extract_zip(&bytes)
         } else {
@@ -190,15 +194,17 @@ fn extract_tarball(data: &[u8]) -> Result<Vec<PackageFile>, RegistryError> {
         }
     }
 
-    debug!(file_count = files.len(), "extracted source files from tarball");
+    debug!(
+        file_count = files.len(),
+        "extracted source files from tarball"
+    );
     Ok(files)
 }
 
 /// Extract source files from a zip/wheel file.
 fn extract_zip(data: &[u8]) -> Result<Vec<PackageFile>, RegistryError> {
     let cursor = Cursor::new(data);
-    let mut archive = ZipArchive::new(cursor)
-        .map_err(|e| RegistryError::Archive(e.to_string()))?;
+    let mut archive = ZipArchive::new(cursor).map_err(|e| RegistryError::Archive(e.to_string()))?;
 
     let mut files = Vec::new();
 

@@ -2,11 +2,11 @@
 
 use anyhow::{Context, Result};
 
+use super::LocalConfig;
 use super::db::LocalDb;
 use super::models::SearchResult;
 use super::storage::LocalStorage;
 use super::vector::VectorStore;
-use super::LocalConfig;
 
 /// Local search service.
 pub struct LocalSearch {
@@ -24,7 +24,12 @@ impl LocalSearch {
         let storage = LocalStorage::new(index_dir.join("blobs")).await?;
         let config = LocalConfig::load()?;
 
-        Ok(Self { db, vectors, storage, config })
+        Ok(Self {
+            db,
+            vectors,
+            storage,
+            config,
+        })
     }
 
     /// Search for code chunks.
@@ -47,16 +52,22 @@ impl LocalSearch {
                     vec![format!("{}/{}/{}", reg, pkg, ver)]
                 } else {
                     // Search all versions of this package in this registry
-                    self.db.get_namespaces().await?
+                    self.db
+                        .get_namespaces()
+                        .await?
                         .into_iter()
                         .filter(|ns| ns.starts_with(&format!("{}/{}/", reg, pkg)))
                         .collect()
                 }
             } else {
                 // Search all registries for this package
-                self.db.get_namespaces().await?
+                self.db
+                    .get_namespaces()
+                    .await?
                     .into_iter()
-                    .filter(|ns| ns.contains(&format!("/{}/", pkg)) || ns.ends_with(&format!("/{}", pkg)))
+                    .filter(|ns| {
+                        ns.contains(&format!("/{}/", pkg)) || ns.ends_with(&format!("/{}", pkg))
+                    })
                     .collect()
             }
         } else {
@@ -69,7 +80,10 @@ impl LocalSearch {
         }
 
         // Search vectors
-        let hits = self.vectors.search_multi(&namespaces, &query_embedding, limit).await?;
+        let hits = self
+            .vectors
+            .search_multi(&namespaces, &query_embedding, limit)
+            .await?;
 
         // Fetch chunk details
         let mut results = Vec::with_capacity(hits.len());
@@ -106,7 +120,9 @@ impl LocalSearch {
 
     /// Generate embedding for a query.
     async fn embed(&self, text: &str) -> Result<Vec<f32>> {
-        let api_key = self.config.openai_api_key
+        let api_key = self
+            .config
+            .openai_api_key
             .as_ref()
             .context("OpenAI API key not configured. Run: idx config set-key")?;
 
@@ -127,7 +143,10 @@ impl LocalSearch {
             .await
             .context("Failed to parse embeddings response")?;
 
-        response.data.into_iter().next()
+        response
+            .data
+            .into_iter()
+            .next()
             .map(|d| d.embedding)
             .context("No embedding returned")
     }

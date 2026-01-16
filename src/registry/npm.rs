@@ -58,7 +58,10 @@ struct NpmPackageResponse {
 #[serde(untagged)]
 enum LicenseField {
     Simple(String),
-    Complex { #[serde(rename = "type")] license_type: String },
+    Complex {
+        #[serde(rename = "type")]
+        license_type: String,
+    },
 }
 
 impl LicenseField {
@@ -209,7 +212,10 @@ fn extract_tarball(data: &[u8]) -> Result<Vec<PackageFile>, RegistryError> {
         }
     }
 
-    debug!(file_count = files.len(), "extracted source files from tarball");
+    debug!(
+        file_count = files.len(),
+        "extracted source files from tarball"
+    );
     Ok(files)
 }
 
@@ -228,16 +234,15 @@ fn is_indexable_file(path: &str) -> bool {
 
     // Source file extensions
     let source_extensions = [
-        ".ts", ".tsx", ".mts", ".cts",
-        ".js", ".jsx", ".mjs", ".cjs",
-        ".py", ".pyi",
-        ".rs",
-        ".go",
+        ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".py", ".pyi", ".rs", ".go",
         ".java",
     ];
 
     // Must have a source extension
-    if !source_extensions.iter().any(|ext| path_lower.ends_with(ext)) {
+    if !source_extensions
+        .iter()
+        .any(|ext| path_lower.ends_with(ext))
+    {
         return false;
     }
 

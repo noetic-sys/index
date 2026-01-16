@@ -4,8 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::TenantId;
 
 /// Which package namespaces to search/discover.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[derive(clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum SearchScope {
     /// Only public packages (safe default for unauthenticated)
@@ -51,8 +50,7 @@ impl std::str::FromStr for SearchScope {
 /// - Maven → Java/Kotlin
 ///
 /// Users can filter by registry at query time - this is NOT a tenant-level setting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum Registry {
     Npm,
@@ -159,7 +157,9 @@ impl Package {
     pub fn namespace(&self) -> String {
         match &self.tenant_id {
             None => self.registry.public_package_namespace(&self.name),
-            Some(tenant) => self.registry.private_package_namespace(&tenant.to_string(), &self.name),
+            Some(tenant) => self
+                .registry
+                .private_package_namespace(&tenant.to_string(), &self.name),
         }
     }
 
@@ -170,7 +170,9 @@ impl Package {
     pub fn discover_namespace(&self) -> String {
         match &self.tenant_id {
             None => self.registry.public_discover_namespace(),
-            Some(tenant) => self.registry.private_discover_namespace(&tenant.to_string()),
+            Some(tenant) => self
+                .registry
+                .private_discover_namespace(&tenant.to_string()),
         }
     }
 }
@@ -226,7 +228,13 @@ mod tests {
 
     #[test]
     fn test_registry_roundtrip() {
-        for registry in [Registry::Npm, Registry::Pypi, Registry::Crates, Registry::Go, Registry::Maven] {
+        for registry in [
+            Registry::Npm,
+            Registry::Pypi,
+            Registry::Crates,
+            Registry::Go,
+            Registry::Maven,
+        ] {
             let s = registry.as_str();
             let parsed: Registry = s.parse().unwrap();
             assert_eq!(registry, parsed);
@@ -235,9 +243,18 @@ mod tests {
 
     #[test]
     fn test_registry_public_namespaces() {
-        assert_eq!(Registry::Npm.public_discover_namespace(), "public/_discover/npm");
-        assert_eq!(Registry::Npm.public_package_namespace("axios"), "public/npm/axios");
-        assert_eq!(Registry::Crates.public_package_namespace("serde"), "public/crates/serde");
+        assert_eq!(
+            Registry::Npm.public_discover_namespace(),
+            "public/_discover/npm"
+        );
+        assert_eq!(
+            Registry::Npm.public_package_namespace("axios"),
+            "public/npm/axios"
+        );
+        assert_eq!(
+            Registry::Crates.public_package_namespace("serde"),
+            "public/crates/serde"
+        );
     }
 
     #[test]
@@ -282,7 +299,13 @@ mod tests {
             chunk_count: 50,
             metadata: PackageMetadata::default(),
         };
-        assert_eq!(private_pkg.namespace(), format!("private/{}/npm/internal-utils", tenant_uuid));
-        assert_eq!(private_pkg.discover_namespace(), format!("private/{}/_discover/npm", tenant_uuid));
+        assert_eq!(
+            private_pkg.namespace(),
+            format!("private/{}/npm/internal-utils", tenant_uuid)
+        );
+        assert_eq!(
+            private_pkg.discover_namespace(),
+            format!("private/{}/_discover/npm", tenant_uuid)
+        );
     }
 }

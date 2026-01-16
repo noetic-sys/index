@@ -2,9 +2,9 @@
 
 use std::str::FromStr;
 
+use crate::types::Registry;
 use anyhow::{Context, Result};
 use clap::Args;
-use crate::types::Registry;
 
 use crate::local::{self, LocalIndexer};
 
@@ -16,8 +16,8 @@ pub struct IndexCmd {
 
 impl IndexCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir = local::get_index_dir()
-            .context("No .index directory found. Run `idx init` first.")?;
+        let index_dir =
+            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
 
         let (registry_str, name, version) = parse_package_spec(&self.package)?;
 
@@ -30,7 +30,10 @@ impl IndexCmd {
         let result = indexer.index_package(registry, &name, &version).await?;
 
         if result.chunks_indexed > 0 {
-            println!("Indexed {} chunks from {} files", result.chunks_indexed, result.files_processed);
+            println!(
+                "Indexed {} chunks from {} files",
+                result.chunks_indexed, result.files_processed
+            );
         } else {
             println!("Already indexed (skipped)");
         }

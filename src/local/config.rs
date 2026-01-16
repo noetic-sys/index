@@ -55,11 +55,9 @@ impl LocalConfig {
             return Ok(Self::default());
         }
 
-        let content = std::fs::read_to_string(&path)
-            .context("Failed to read config file")?;
+        let content = std::fs::read_to_string(&path).context("Failed to read config file")?;
 
-        toml::from_str(&content)
-            .context("Failed to parse config file")
+        toml::from_str(&content).context("Failed to parse config file")
     }
 
     /// Save config to the default location.
@@ -67,15 +65,12 @@ impl LocalConfig {
         let path = Self::config_path()?;
 
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .context("Failed to create config directory")?;
+            std::fs::create_dir_all(parent).context("Failed to create config directory")?;
         }
 
-        let content = toml::to_string_pretty(self)
-            .context("Failed to serialize config")?;
+        let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
 
-        std::fs::write(&path, content)
-            .context("Failed to write config file")
+        std::fs::write(&path, content).context("Failed to write config file")
     }
 
     /// Get the OpenAI API key as a SecretString.
@@ -98,16 +93,14 @@ impl LocalConfig {
 
     /// Get the config file path.
     pub fn config_path() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .context("Could not determine config directory")?;
+        let config_dir = dirs::config_dir().context("Could not determine config directory")?;
 
         Ok(config_dir.join(CONFIG_DIR).join(CONFIG_FILE))
     }
 
     /// Get the config directory path.
     pub fn config_dir() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .context("Could not determine config directory")?;
+        let config_dir = dirs::config_dir().context("Could not determine config directory")?;
 
         Ok(config_dir.join(CONFIG_DIR))
     }

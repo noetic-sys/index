@@ -7,8 +7,8 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Row, SqlitePool};
 
 use super::models::{
-    bytes_to_vector, vector_to_bytes, ChunkRow, ChunkWithPackage, CreateChunk, CreatePackage,
-    ExistingChunk, PackageRow,
+    ChunkRow, ChunkWithPackage, CreateChunk, CreatePackage, ExistingChunk, PackageRow,
+    bytes_to_vector, vector_to_bytes,
 };
 
 /// Local SQLite database.
@@ -144,11 +144,10 @@ impl LocalDb {
 
     /// List all packages.
     pub async fn list_packages(&self) -> Result<Vec<PackageRow>> {
-        let rows = sqlx::query_as::<_, PackageRow>(
-            "SELECT * FROM packages ORDER BY indexed_at DESC",
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let rows =
+            sqlx::query_as::<_, PackageRow>("SELECT * FROM packages ORDER BY indexed_at DESC")
+                .fetch_all(&self.pool)
+                .await?;
 
         Ok(rows)
     }
@@ -200,12 +199,11 @@ impl LocalDb {
     /// Delete all chunks for a package.
     pub async fn delete_package_chunks(&self, package_id: &str) -> Result<Vec<String>> {
         // Get namespaces before deleting
-        let namespaces: Vec<String> = sqlx::query_scalar(
-            "SELECT DISTINCT namespace FROM chunks WHERE package_id = ?",
-        )
-        .bind(package_id)
-        .fetch_all(&self.pool)
-        .await?;
+        let namespaces: Vec<String> =
+            sqlx::query_scalar("SELECT DISTINCT namespace FROM chunks WHERE package_id = ?")
+                .bind(package_id)
+                .fetch_all(&self.pool)
+                .await?;
 
         sqlx::query("DELETE FROM chunks WHERE package_id = ?")
             .bind(package_id)
@@ -229,12 +227,10 @@ impl LocalDb {
 
     /// Get all chunks in a namespace (for building HNSW index).
     pub async fn get_chunks_by_namespace(&self, namespace: &str) -> Result<Vec<ChunkRow>> {
-        let rows = sqlx::query_as::<_, ChunkRow>(
-            "SELECT * FROM chunks WHERE namespace = ?",
-        )
-        .bind(namespace)
-        .fetch_all(&self.pool)
-        .await?;
+        let rows = sqlx::query_as::<_, ChunkRow>("SELECT * FROM chunks WHERE namespace = ?")
+            .bind(namespace)
+            .fetch_all(&self.pool)
+            .await?;
 
         Ok(rows)
     }
@@ -284,10 +280,9 @@ impl LocalDb {
 
     /// Get all distinct namespaces.
     pub async fn get_namespaces(&self) -> Result<Vec<String>> {
-        let namespaces: Vec<String> =
-            sqlx::query_scalar("SELECT DISTINCT namespace FROM chunks")
-                .fetch_all(&self.pool)
-                .await?;
+        let namespaces: Vec<String> = sqlx::query_scalar("SELECT DISTINCT namespace FROM chunks")
+            .fetch_all(&self.pool)
+            .await?;
 
         Ok(namespaces)
     }

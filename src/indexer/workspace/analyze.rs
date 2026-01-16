@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use crate::types::Registry;
 
-use super::{cargo, go, jvm, npm, patterns, python, DetectedPackage};
+use super::{DetectedPackage, cargo, go, jvm, npm, patterns, python};
 use crate::indexer::Language;
 
 /// Analyze a repository to detect packages.
@@ -32,7 +32,11 @@ pub fn analyze_repo(files: &[(String, String)]) -> Vec<DetectedPackage> {
         }
 
         let name = parse_name(content, registry);
-        packages.push(DetectedPackage { registry, name, root_path });
+        packages.push(DetectedPackage {
+            registry,
+            name,
+            root_path,
+        });
     }
 
     dedupe(&mut packages);
@@ -50,9 +54,10 @@ fn has_source_files(root_path: &str, registry: Registry, files: &[(String, Strin
             path.starts_with(root_path)
         };
 
-        in_subtree && Language::from_path(path)
-            .map(|lang| langs.contains(&lang))
-            .unwrap_or(false)
+        in_subtree
+            && Language::from_path(path)
+                .map(|lang| langs.contains(&lang))
+                .unwrap_or(false)
     })
 }
 
@@ -78,7 +83,10 @@ fn manifest_registry(path: &str) -> Option<Registry> {
     }
 }
 
-fn detect_workspaces(files: &[(String, String)], manifests: &[(&str, &str, Registry)]) -> HashSet<String> {
+fn detect_workspaces(
+    files: &[(String, String)],
+    manifests: &[(&str, &str, Registry)],
+) -> HashSet<String> {
     let mut members = HashSet::new();
 
     // Root manifests with workspace config
@@ -141,7 +149,9 @@ fn parse_name(content: &str, registry: Registry) -> Option<String> {
 }
 
 fn parent_dir(path: &str) -> String {
-    path.rfind('/').map(|i| path[..i].to_string()).unwrap_or_default()
+    path.rfind('/')
+        .map(|i| path[..i].to_string())
+        .unwrap_or_default()
 }
 
 fn dedupe(packages: &mut Vec<DetectedPackage>) {
@@ -156,7 +166,10 @@ mod tests {
     #[test]
     fn test_simple_npm_package() {
         let files = vec![
-            ("package.json".to_string(), r#"{"name": "my-app"}"#.to_string()),
+            (
+                "package.json".to_string(),
+                r#"{"name": "my-app"}"#.to_string(),
+            ),
             ("src/index.ts".to_string(), "export {}".to_string()),
         ];
 
@@ -169,12 +182,30 @@ mod tests {
     #[test]
     fn test_npm_workspace() {
         let files = vec![
-            ("package.json".to_string(), r#"{"workspaces": ["packages/*"]}"#.to_string()),
-            ("packages/core/package.json".to_string(), r#"{"name": "core"}"#.to_string()),
-            ("packages/core/index.ts".to_string(), "export {}".to_string()),
-            ("packages/utils/package.json".to_string(), r#"{"name": "utils"}"#.to_string()),
-            ("packages/utils/index.ts".to_string(), "export {}".to_string()),
-            ("tests/package.json".to_string(), r#"{"name": "tests"}"#.to_string()),
+            (
+                "package.json".to_string(),
+                r#"{"workspaces": ["packages/*"]}"#.to_string(),
+            ),
+            (
+                "packages/core/package.json".to_string(),
+                r#"{"name": "core"}"#.to_string(),
+            ),
+            (
+                "packages/core/index.ts".to_string(),
+                "export {}".to_string(),
+            ),
+            (
+                "packages/utils/package.json".to_string(),
+                r#"{"name": "utils"}"#.to_string(),
+            ),
+            (
+                "packages/utils/index.ts".to_string(),
+                "export {}".to_string(),
+            ),
+            (
+                "tests/package.json".to_string(),
+                r#"{"name": "tests"}"#.to_string(),
+            ),
         ];
 
         let packages = analyze_repo(&files);
@@ -188,7 +219,10 @@ mod tests {
         let files = vec![
             ("package.json".to_string(), r#"{"name": "app"}"#.to_string()),
             ("src/index.ts".to_string(), "export {}".to_string()),
-            ("tests/package.json".to_string(), r#"{"name": "test-pkg"}"#.to_string()),
+            (
+                "tests/package.json".to_string(),
+                r#"{"name": "test-pkg"}"#.to_string(),
+            ),
         ];
 
         let packages = analyze_repo(&files);
@@ -201,9 +235,18 @@ mod tests {
         // Directory has both package.json and pyproject.toml
         // but only Python source files - should only detect pypi
         let files = vec![
-            ("agents/chunking/package.json".to_string(), r#"{"name": "agent-chunking", "private": true}"#.to_string()),
-            ("agents/chunking/pyproject.toml".to_string(), "[project]\nname = \"agent-chunking\"".to_string()),
-            ("agents/chunking/src/main.py".to_string(), "print('hello')".to_string()),
+            (
+                "agents/chunking/package.json".to_string(),
+                r#"{"name": "agent-chunking", "private": true}"#.to_string(),
+            ),
+            (
+                "agents/chunking/pyproject.toml".to_string(),
+                "[project]\nname = \"agent-chunking\"".to_string(),
+            ),
+            (
+                "agents/chunking/src/main.py".to_string(),
+                "print('hello')".to_string(),
+            ),
         ];
 
         let packages = analyze_repo(&files);
@@ -216,8 +259,14 @@ mod tests {
     fn test_true_polyglot_keeps_both() {
         // Directory has both JS and Python source files - keep both
         let files = vec![
-            ("lib/package.json".to_string(), r#"{"name": "my-lib"}"#.to_string()),
-            ("lib/pyproject.toml".to_string(), "[project]\nname = \"my-lib\"".to_string()),
+            (
+                "lib/package.json".to_string(),
+                r#"{"name": "my-lib"}"#.to_string(),
+            ),
+            (
+                "lib/pyproject.toml".to_string(),
+                "[project]\nname = \"my-lib\"".to_string(),
+            ),
             ("lib/index.ts".to_string(), "export {}".to_string()),
             ("lib/main.py".to_string(), "print('hello')".to_string()),
         ];

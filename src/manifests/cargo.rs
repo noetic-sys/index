@@ -101,7 +101,10 @@ fn collect_direct_deps(dir: &Path) -> Result<HashMap<String, String>> {
 }
 
 /// Extract dependencies (name -> version) from a Cargo.toml.
-fn extract_deps(toml: &toml::Value, workspace_versions: &HashMap<String, String>) -> HashMap<String, String> {
+fn extract_deps(
+    toml: &toml::Value,
+    workspace_versions: &HashMap<String, String>,
+) -> HashMap<String, String> {
     let mut deps = HashMap::new();
 
     for section in ["dependencies", "dev-dependencies", "build-dependencies"] {

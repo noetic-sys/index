@@ -4,16 +4,19 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::types::Registry;
 use anyhow::{Context, Result};
 use clap::Args;
 use futures::stream::{self, StreamExt};
-use crate::types::Registry;
 
 use crate::local::{self, LocalIndexer};
-use crate::manifests::{parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps, parse_python_deps, Dependency};
+use crate::manifests::{
+    Dependency, parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps,
+    parse_python_deps,
+};
 
 #[derive(Args)]
 pub struct UpdateCmd {
@@ -32,8 +35,8 @@ pub struct UpdateCmd {
 
 impl UpdateCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir = local::get_index_dir()
-            .context("No .index directory found. Run `idx init` first.")?;
+        let index_dir =
+            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
 
         let indexer = Arc::new(LocalIndexer::new(&index_dir).await?);
 
@@ -73,7 +76,10 @@ impl UpdateCmd {
                 Some(indexed_version) => {
                     // Version changed
                     if self.verbose {
-                        println!("  {}@{} -> {} (version changed)", dep.name, indexed_version, dep.version);
+                        println!(
+                            "  {}@{} -> {} (version changed)",
+                            dep.name, indexed_version, dep.version
+                        );
                     }
                     to_update.push(dep);
                 }
@@ -119,11 +125,17 @@ impl UpdateCmd {
                     }
                 };
 
-                match indexer.index_package(registry, &dep.name, &dep.version).await {
+                match indexer
+                    .index_package(registry, &dep.name, &dep.version)
+                    .await
+                {
                     Ok(result) => {
                         indexed.fetch_add(1, Ordering::Relaxed);
                         if verbose {
-                            eprintln!("  {}@{} -> indexed ({} chunks)", dep.name, dep.version, result.chunks_indexed);
+                            eprintln!(
+                                "  {}@{} -> indexed ({} chunks)",
+                                dep.name, dep.version, result.chunks_indexed
+                            );
                         }
                     }
                     Err(e) => {

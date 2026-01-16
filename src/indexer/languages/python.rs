@@ -1,5 +1,5 @@
-use tree_sitter::{Node, Parser};
 use crate::types::{ChunkType, Visibility};
+use tree_sitter::{Node, Parser};
 
 use crate::indexer::chunk::{ChunkBuilder, CodeChunk};
 use crate::indexer::error::IndexerError;
@@ -30,7 +30,11 @@ impl PythonParser {
         Ok(parser)
     }
 
-    fn extract_chunks(&self, source: &str, file_path: &str) -> Result<Vec<CodeChunk>, IndexerError> {
+    fn extract_chunks(
+        &self,
+        source: &str,
+        file_path: &str,
+    ) -> Result<Vec<CodeChunk>, IndexerError> {
         let mut parser = Self::create_parser()?;
         let tree = parser
             .parse(source, None)
@@ -41,13 +45,7 @@ impl PythonParser {
         Ok(chunks)
     }
 
-    fn visit_node(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-        chunks: &mut Vec<CodeChunk>,
-    ) {
+    fn visit_node(&self, node: Node, source: &str, file_path: &str, chunks: &mut Vec<CodeChunk>) {
         match node.kind() {
             "function_definition" => {
                 if let Some(chunk) = self.extract_function(node, source, file_path) {
@@ -69,12 +67,7 @@ impl PythonParser {
         }
     }
 
-    fn extract_function(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-    ) -> Option<CodeChunk> {
+    fn extract_function(&self, node: Node, source: &str, file_path: &str) -> Option<CodeChunk> {
         let name = self.get_child_text(node, "name", source)?;
         let code = node.utf8_text(source.as_bytes()).ok()?;
         let docstring = self.extract_docstring(node, source);
@@ -106,12 +99,7 @@ impl PythonParser {
             .build()
     }
 
-    fn extract_class(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-    ) -> Option<CodeChunk> {
+    fn extract_class(&self, node: Node, source: &str, file_path: &str) -> Option<CodeChunk> {
         let name = self.get_child_text(node, "name", source)?;
         let code = node.utf8_text(source.as_bytes()).ok()?;
         let docstring = self.extract_docstring(node, source);
@@ -172,7 +160,10 @@ impl PythonParser {
 
     fn get_child_text(&self, node: Node, field: &str, source: &str) -> Option<String> {
         let child = node.child_by_field_name(field)?;
-        child.utf8_text(source.as_bytes()).ok().map(|s| s.to_string())
+        child
+            .utf8_text(source.as_bytes())
+            .ok()
+            .map(|s| s.to_string())
     }
 
     fn clean_docstring(&self, docstring: &str) -> String {
@@ -340,7 +331,13 @@ async def fetch_data(url: str) -> dict:
 
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].name, "fetch_data");
-        assert!(chunks[0].documentation.as_ref().unwrap().contains("Fetch data from URL"));
+        assert!(
+            chunks[0]
+                .documentation
+                .as_ref()
+                .unwrap()
+                .contains("Fetch data from URL")
+        );
     }
 
     #[test]
@@ -355,7 +352,10 @@ def multiply(a, b):
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].name, "multiply");
         // No docstring
-        assert!(chunks[0].documentation.is_none() || chunks[0].documentation.as_ref().unwrap().is_empty());
+        assert!(
+            chunks[0].documentation.is_none()
+                || chunks[0].documentation.as_ref().unwrap().is_empty()
+        );
     }
 
     #[test]
@@ -447,7 +447,10 @@ class MyClass:
 "#;
         let chunks = parser.parse(source, "test.py").unwrap();
 
-        let private = chunks.iter().find(|c| c.name == "__private_method").unwrap();
+        let private = chunks
+            .iter()
+            .find(|c| c.name == "__private_method")
+            .unwrap();
         assert_eq!(private.visibility, Visibility::Private);
     }
 

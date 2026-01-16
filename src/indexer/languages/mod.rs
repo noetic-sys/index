@@ -1,19 +1,19 @@
-mod typescript;
-mod python;
-mod rust_lang;
 mod go;
 mod java;
 mod markdown;
+mod python;
+mod rust_lang;
+mod typescript;
 
 use super::error::IndexerError;
 use super::language::{Language, LanguageParser};
 
-pub use typescript::TypeScriptParser;
-pub use python::PythonParser;
-pub use rust_lang::RustParser;
 pub use go::GoParser;
 pub use java::JavaParser;
 pub use markdown::MarkdownParser;
+pub use python::PythonParser;
+pub use rust_lang::RustParser;
+pub use typescript::TypeScriptParser;
 
 /// Get a parser for the given language.
 pub fn get_parser(language: Language) -> Result<Box<dyn LanguageParser>, IndexerError> {

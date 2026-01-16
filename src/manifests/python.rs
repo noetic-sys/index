@@ -63,7 +63,9 @@ fn parse_pyproject(path: &Path) -> Result<Vec<Dependency>> {
             }
             let version = match value {
                 toml::Value::String(v) => Some(v.clone()),
-                toml::Value::Table(t) => t.get("version").and_then(|v| v.as_str()).map(String::from),
+                toml::Value::Table(t) => {
+                    t.get("version").and_then(|v| v.as_str()).map(String::from)
+                }
                 _ => None,
             };
             if let Some(v) = version.and_then(|v| clean_version(&v)) {
@@ -84,7 +86,9 @@ fn parse_requirements(path: &Path) -> Result<Vec<Dependency>> {
 
     let deps = content
         .lines()
-        .filter(|l| !l.trim().is_empty() && !l.trim().starts_with('#') && !l.trim().starts_with('-'))
+        .filter(|l| {
+            !l.trim().is_empty() && !l.trim().starts_with('#') && !l.trim().starts_with('-')
+        })
         .filter_map(parse_pep508)
         .collect();
 
@@ -116,7 +120,11 @@ fn parse_pep508(spec: &str) -> Option<Dependency> {
 }
 
 fn clean_version(version: &str) -> Option<String> {
-    let v = version.trim().trim_start_matches('^').trim_start_matches('~').trim_start_matches('=');
+    let v = version
+        .trim()
+        .trim_start_matches('^')
+        .trim_start_matches('~')
+        .trim_start_matches('=');
 
     if v.contains(',') || v.contains(' ') || v.contains('*') {
         return None;

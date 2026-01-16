@@ -12,8 +12,8 @@ pub struct StatsCmd;
 
 impl StatsCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir = local::get_index_dir()
-            .context("No .index directory found. Run `idx init` first.")?;
+        let index_dir =
+            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
 
         let indexer = LocalIndexer::new(&index_dir).await?;
 

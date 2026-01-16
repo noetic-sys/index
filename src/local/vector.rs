@@ -12,7 +12,7 @@ use futures::TryStreamExt;
 use lancedb::query::{ExecutableQuery, QueryBase};
 use lancedb::{Connection, Table};
 
-use super::models::{VectorRecord, VectorSearchHit, VECTOR_DIM};
+use super::models::{VECTOR_DIM, VectorRecord, VectorSearchHit};
 
 /// LanceDB-based vector store.
 pub struct VectorStore {
@@ -144,7 +144,10 @@ impl VectorStore {
             .await
             .context("Failed to list tables")?;
 
-        Ok(tables.into_iter().map(|t| unsanitize_table_name(&t)).collect())
+        Ok(tables
+            .into_iter()
+            .map(|t| unsanitize_table_name(&t))
+            .collect())
     }
 
     fn schema() -> Arc<Schema> {
@@ -174,7 +177,11 @@ impl VectorStore {
 
         RecordBatch::try_new(
             schema.clone(),
-            vec![Arc::new(chunk_ids), Arc::new(content_hashes), Arc::new(vectors)],
+            vec![
+                Arc::new(chunk_ids),
+                Arc::new(content_hashes),
+                Arc::new(vectors),
+            ],
         )
         .context("Failed to create empty batch")
     }
@@ -182,7 +189,10 @@ impl VectorStore {
     fn records_to_batch(records: &[VectorRecord]) -> Result<RecordBatch> {
         let chunk_ids: Vec<&str> = records.iter().map(|r| r.chunk_id.as_str()).collect();
         let content_hashes: Vec<&str> = records.iter().map(|r| r.content_hash.as_str()).collect();
-        let flat_vectors: Vec<f32> = records.iter().flat_map(|r| r.vector.iter().copied()).collect();
+        let flat_vectors: Vec<f32> = records
+            .iter()
+            .flat_map(|r| r.vector.iter().copied())
+            .collect();
 
         let chunk_id_array = StringArray::from(chunk_ids);
         let content_hash_array = StringArray::from(content_hashes);

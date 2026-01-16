@@ -12,7 +12,11 @@ pub fn parse_workspace(content: &str) -> Vec<String> {
     toml.get("workspace")
         .and_then(|ws| ws.get("members"))
         .and_then(|m| m.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default()
 }
 

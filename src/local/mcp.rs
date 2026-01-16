@@ -4,15 +4,14 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::Result;
 use crate::types::Registry;
+use anyhow::Result;
 use rmcp::{
-    ErrorData as McpError, ServerHandler,
+    ErrorData as McpError, ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::*,
-    schemars,
-    tool, tool_handler, tool_router,
-    ServiceExt, transport::io::stdio,
+    schemars, tool, tool_handler, tool_router,
+    transport::io::stdio,
 };
 use serde::Deserialize;
 
@@ -81,7 +80,9 @@ impl LocalMcpServer {
         })
     }
 
-    #[tool(description = "Search for code in your project's indexed dependencies using semantic search. Returns relevant functions, classes, types, and documentation.")]
+    #[tool(
+        description = "Search for code in your project's indexed dependencies using semantic search. Returns relevant functions, classes, types, and documentation."
+    )]
     async fn search_code(
         &self,
         Parameters(input): Parameters<SearchCodeInput>,
@@ -190,7 +191,9 @@ impl LocalMcpServer {
         }
     }
 
-    #[tool(description = "Index a package from a registry. Use this to add a package to the local index so it can be searched.")]
+    #[tool(
+        description = "Index a package from a registry. Use this to add a package to the local index so it can be searched."
+    )]
     async fn index_package(
         &self,
         Parameters(input): Parameters<IndexPackageInput>,
@@ -205,13 +208,20 @@ impl LocalMcpServer {
             }
         };
 
-        match self.indexer.index_package(registry, &input.package, &input.version).await {
+        match self
+            .indexer
+            .index_package(registry, &input.package, &input.version)
+            .await
+        {
             Ok(result) => {
                 if result.chunks_indexed > 0 {
                     Ok(CallToolResult::success(vec![Content::text(format!(
                         "Indexed {}:{}@{} ({} chunks from {} files)",
-                        input.registry, input.package, input.version,
-                        result.chunks_indexed, result.files_processed
+                        input.registry,
+                        input.package,
+                        input.version,
+                        result.chunks_indexed,
+                        result.files_processed
                     ))]))
                 } else {
                     Ok(CallToolResult::success(vec![Content::text(format!(

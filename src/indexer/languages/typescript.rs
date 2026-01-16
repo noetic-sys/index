@@ -1,5 +1,5 @@
-use tree_sitter::{Node, Parser, Tree};
 use crate::types::{ChunkType, Visibility};
+use tree_sitter::{Node, Parser, Tree};
 
 use crate::indexer::chunk::{ChunkBuilder, CodeChunk};
 use crate::indexer::error::IndexerError;
@@ -72,7 +72,9 @@ impl TypeScriptParser {
 
         // Check if this node produces a chunk
         let chunk = match kind {
-            "function_declaration" => self.extract_function(node, source, file_path, preceding_comment),
+            "function_declaration" => {
+                self.extract_function(node, source, file_path, preceding_comment)
+            }
             "method_definition" => self.extract_method(node, source, file_path, preceding_comment),
             "class_declaration" => self.extract_class(node, source, file_path, preceding_comment),
             "interface_declaration" if self.is_typescript => {
@@ -311,7 +313,10 @@ impl TypeScriptParser {
 
     fn get_child_text(&self, node: Node, field: &str, source: &str) -> Option<String> {
         let child = node.child_by_field_name(field)?;
-        child.utf8_text(source.as_bytes()).ok().map(|s| s.to_string())
+        child
+            .utf8_text(source.as_bytes())
+            .ok()
+            .map(|s| s.to_string())
     }
 
     fn extract_function_signature(&self, node: Node, source: &str) -> Option<String> {
@@ -359,18 +364,11 @@ impl TypeScriptParser {
             .strip_prefix("/**")
             .or_else(|| trimmed.strip_prefix("/*"))
             .unwrap_or(trimmed);
-        let without_end = without_start
-            .strip_suffix("*/")
-            .unwrap_or(without_start);
+        let without_end = without_start.strip_suffix("*/").unwrap_or(without_start);
 
         without_end
             .lines()
-            .map(|line| {
-                line.trim()
-                    .strip_prefix("*")
-                    .unwrap_or(line)
-                    .trim()
-            })
+            .map(|line| line.trim().strip_prefix("*").unwrap_or(line).trim())
             .filter(|line| !line.is_empty())
             .collect::<Vec<_>>()
             .join("\n")
@@ -470,7 +468,13 @@ function add(a: number, b: number): number {
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].name, "add");
         assert_eq!(chunks[0].chunk_type, ChunkType::Function);
-        assert!(chunks[0].documentation.as_ref().unwrap().contains("Adds two numbers"));
+        assert!(
+            chunks[0]
+                .documentation
+                .as_ref()
+                .unwrap()
+                .contains("Adds two numbers")
+        );
     }
 
     #[test]
@@ -648,7 +652,10 @@ interface InternalInterface {
         let public_if = chunks.iter().find(|c| c.name == "PublicInterface").unwrap();
         assert_eq!(public_if.visibility, Visibility::Public);
 
-        let internal_if = chunks.iter().find(|c| c.name == "InternalInterface").unwrap();
+        let internal_if = chunks
+            .iter()
+            .find(|c| c.name == "InternalInterface")
+            .unwrap();
         assert_eq!(internal_if.visibility, Visibility::Internal);
     }
 }

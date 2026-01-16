@@ -21,8 +21,8 @@ impl McpCmd {
             .with(tracing_subscriber::EnvFilter::from_default_env())
             .init();
 
-        let index_dir = local::get_index_dir()
-            .context("No .index directory found. Run `idx init` first.")?;
+        let index_dir =
+            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
 
         local::mcp::run_local(&index_dir).await
     }

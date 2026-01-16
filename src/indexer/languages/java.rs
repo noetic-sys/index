@@ -1,5 +1,5 @@
-use tree_sitter::{Node, Parser};
 use crate::types::{ChunkType, Visibility};
+use tree_sitter::{Node, Parser};
 
 use crate::indexer::chunk::{ChunkBuilder, CodeChunk};
 use crate::indexer::error::IndexerError;
@@ -30,7 +30,11 @@ impl JavaParser {
         Ok(parser)
     }
 
-    fn extract_chunks(&self, source: &str, file_path: &str) -> Result<Vec<CodeChunk>, IndexerError> {
+    fn extract_chunks(
+        &self,
+        source: &str,
+        file_path: &str,
+    ) -> Result<Vec<CodeChunk>, IndexerError> {
         let mut parser = Self::create_parser()?;
         let tree = parser
             .parse(source, None)
@@ -41,13 +45,7 @@ impl JavaParser {
         Ok(chunks)
     }
 
-    fn visit_node(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-        chunks: &mut Vec<CodeChunk>,
-    ) {
+    fn visit_node(&self, node: Node, source: &str, file_path: &str, chunks: &mut Vec<CodeChunk>) {
         match node.kind() {
             "method_declaration" => {
                 if let Some(chunk) = self.extract_method(node, source, file_path) {
@@ -78,12 +76,7 @@ impl JavaParser {
         }
     }
 
-    fn extract_method(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-    ) -> Option<CodeChunk> {
+    fn extract_method(&self, node: Node, source: &str, file_path: &str) -> Option<CodeChunk> {
         let name = self.get_child_text(node, "name", source)?;
         let code = node.utf8_text(source.as_bytes()).ok()?;
         let doc = self.extract_javadoc(node, source);
@@ -106,12 +99,7 @@ impl JavaParser {
             .build()
     }
 
-    fn extract_class(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-    ) -> Option<CodeChunk> {
+    fn extract_class(&self, node: Node, source: &str, file_path: &str) -> Option<CodeChunk> {
         let name = self.get_child_text(node, "name", source)?;
         let code = node.utf8_text(source.as_bytes()).ok()?;
         let doc = self.extract_javadoc(node, source);
@@ -134,12 +122,7 @@ impl JavaParser {
             .build()
     }
 
-    fn extract_interface(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-    ) -> Option<CodeChunk> {
+    fn extract_interface(&self, node: Node, source: &str, file_path: &str) -> Option<CodeChunk> {
         let name = self.get_child_text(node, "name", source)?;
         let code = node.utf8_text(source.as_bytes()).ok()?;
         let doc = self.extract_javadoc(node, source);
@@ -162,12 +145,7 @@ impl JavaParser {
             .build()
     }
 
-    fn extract_enum(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-    ) -> Option<CodeChunk> {
+    fn extract_enum(&self, node: Node, source: &str, file_path: &str) -> Option<CodeChunk> {
         let name = self.get_child_text(node, "name", source)?;
         let code = node.utf8_text(source.as_bytes()).ok()?;
         let doc = self.extract_javadoc(node, source);
@@ -198,7 +176,10 @@ impl JavaParser {
                 if text.starts_with("/**") {
                     return Some(self.clean_javadoc(text));
                 }
-            } else if sibling.kind() != "line_comment" && sibling.kind() != "marker_annotation" && sibling.kind() != "annotation" {
+            } else if sibling.kind() != "line_comment"
+                && sibling.kind() != "marker_annotation"
+                && sibling.kind() != "annotation"
+            {
                 break;
             }
             prev = sibling.prev_sibling();
@@ -214,12 +195,7 @@ impl JavaParser {
             .strip_suffix("*/")
             .unwrap_or(comment)
             .lines()
-            .map(|line| {
-                line.trim()
-                    .strip_prefix("*")
-                    .unwrap_or(line)
-                    .trim()
-            })
+            .map(|line| line.trim().strip_prefix("*").unwrap_or(line).trim())
             .filter(|line| !line.is_empty())
             .collect::<Vec<_>>()
             .join("\n")
@@ -227,7 +203,10 @@ impl JavaParser {
 
     fn get_child_text(&self, node: Node, field: &str, source: &str) -> Option<String> {
         let child = node.child_by_field_name(field)?;
-        child.utf8_text(source.as_bytes()).ok().map(|s| s.to_string())
+        child
+            .utf8_text(source.as_bytes())
+            .ok()
+            .map(|s| s.to_string())
     }
 
     /// Detect visibility from Java modifiers.
@@ -284,7 +263,13 @@ public class Calculator {
 
         let method = chunks.iter().find(|c| c.name == "add").unwrap();
         assert_eq!(method.visibility, Visibility::Public);
-        assert!(method.documentation.as_ref().unwrap().contains("Adds two numbers"));
+        assert!(
+            method
+                .documentation
+                .as_ref()
+                .unwrap()
+                .contains("Adds two numbers")
+        );
     }
 
     #[test]

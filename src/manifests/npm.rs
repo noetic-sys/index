@@ -64,15 +64,22 @@ struct PackageJson {
 /// Parse direct dependencies (name -> version spec) from package.json.
 fn parse_package_json(path: &Path) -> Result<HashMap<String, String>> {
     let content = std::fs::read_to_string(path).context("Failed to read package.json")?;
-    let pkg: PackageJson = serde_json::from_str(&content).context("Failed to parse package.json")?;
+    let pkg: PackageJson =
+        serde_json::from_str(&content).context("Failed to parse package.json")?;
 
     let mut deps = HashMap::new();
 
-    for map in [pkg.dependencies, pkg.dev_dependencies].into_iter().flatten() {
+    for map in [pkg.dependencies, pkg.dev_dependencies]
+        .into_iter()
+        .flatten()
+    {
         for (name, version) in map {
             // Skip git/file/url deps
-            if version.starts_with("git") || version.starts_with("file:")
-                || version.starts_with("http") || version.contains("github:") {
+            if version.starts_with("git")
+                || version.starts_with("file:")
+                || version.starts_with("http")
+                || version.contains("github:")
+            {
                 continue;
             }
             deps.insert(name, version);
@@ -95,7 +102,8 @@ struct PackageLockEntry {
 /// Build a name -> version map from package-lock.json (top-level packages only).
 fn build_lock_version_map(path: &Path) -> Result<HashMap<String, String>> {
     let content = std::fs::read_to_string(path).context("Failed to read package-lock.json")?;
-    let lock: PackageLock = serde_json::from_str(&content).context("Failed to parse package-lock.json")?;
+    let lock: PackageLock =
+        serde_json::from_str(&content).context("Failed to parse package-lock.json")?;
 
     let mut map = HashMap::new();
 
@@ -132,8 +140,14 @@ fn clean_version(version: &str) -> Option<String> {
         .trim_start_matches('v');
 
     // Skip ranges, urls, git refs
-    if v.contains(' ') || v.contains("||") || v.contains("http") || v.contains("git")
-        || v.contains("file:") || v.starts_with('>') || v.starts_with('<') || v.starts_with('*')
+    if v.contains(' ')
+        || v.contains("||")
+        || v.contains("http")
+        || v.contains("git")
+        || v.contains("file:")
+        || v.starts_with('>')
+        || v.starts_with('<')
+        || v.starts_with('*')
     {
         return None;
     }

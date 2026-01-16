@@ -192,17 +192,29 @@ mod tests {
     fn test_visibility_from_str() {
         assert_eq!("public".parse::<Visibility>().unwrap(), Visibility::Public);
         assert_eq!("pub".parse::<Visibility>().unwrap(), Visibility::Public);
-        assert_eq!("protected".parse::<Visibility>().unwrap(), Visibility::Protected);
-        assert_eq!("internal".parse::<Visibility>().unwrap(), Visibility::Internal);
+        assert_eq!(
+            "protected".parse::<Visibility>().unwrap(),
+            Visibility::Protected
+        );
+        assert_eq!(
+            "internal".parse::<Visibility>().unwrap(),
+            Visibility::Internal
+        );
         assert_eq!("crate".parse::<Visibility>().unwrap(), Visibility::Internal);
-        assert_eq!("private".parse::<Visibility>().unwrap(), Visibility::Private);
+        assert_eq!(
+            "private".parse::<Visibility>().unwrap(),
+            Visibility::Private
+        );
         assert_eq!("priv".parse::<Visibility>().unwrap(), Visibility::Private);
     }
 
     #[test]
     fn test_visibility_from_str_case_insensitive() {
         assert_eq!("PUBLIC".parse::<Visibility>().unwrap(), Visibility::Public);
-        assert_eq!("Private".parse::<Visibility>().unwrap(), Visibility::Private);
+        assert_eq!(
+            "Private".parse::<Visibility>().unwrap(),
+            Visibility::Private
+        );
     }
 
     #[test]
@@ -213,7 +225,12 @@ mod tests {
 
     #[test]
     fn test_visibility_roundtrip() {
-        for vis in [Visibility::Public, Visibility::Protected, Visibility::Internal, Visibility::Private] {
+        for vis in [
+            Visibility::Public,
+            Visibility::Protected,
+            Visibility::Internal,
+            Visibility::Private,
+        ] {
             let s = vis.as_str();
             let parsed: Visibility = s.parse().unwrap();
             assert_eq!(vis, parsed);
@@ -228,26 +245,50 @@ mod tests {
 
     #[test]
     fn test_chunk_type_from_str() {
-        assert_eq!("function".parse::<ChunkType>().unwrap(), ChunkType::Function);
+        assert_eq!(
+            "function".parse::<ChunkType>().unwrap(),
+            ChunkType::Function
+        );
         assert_eq!("fn".parse::<ChunkType>().unwrap(), ChunkType::Function);
         assert_eq!("method".parse::<ChunkType>().unwrap(), ChunkType::Method);
         assert_eq!("class".parse::<ChunkType>().unwrap(), ChunkType::Class);
-        assert_eq!("interface".parse::<ChunkType>().unwrap(), ChunkType::Interface);
+        assert_eq!(
+            "interface".parse::<ChunkType>().unwrap(),
+            ChunkType::Interface
+        );
         assert_eq!("type".parse::<ChunkType>().unwrap(), ChunkType::Type);
-        assert_eq!("constant".parse::<ChunkType>().unwrap(), ChunkType::Constant);
+        assert_eq!(
+            "constant".parse::<ChunkType>().unwrap(),
+            ChunkType::Constant
+        );
         assert_eq!("const".parse::<ChunkType>().unwrap(), ChunkType::Constant);
         assert_eq!("module".parse::<ChunkType>().unwrap(), ChunkType::Module);
         assert_eq!("mod".parse::<ChunkType>().unwrap(), ChunkType::Module);
         assert_eq!("example".parse::<ChunkType>().unwrap(), ChunkType::Example);
-        assert_eq!("documentation".parse::<ChunkType>().unwrap(), ChunkType::Documentation);
-        assert_eq!("doc".parse::<ChunkType>().unwrap(), ChunkType::Documentation);
-        assert_eq!("docs".parse::<ChunkType>().unwrap(), ChunkType::Documentation);
+        assert_eq!(
+            "documentation".parse::<ChunkType>().unwrap(),
+            ChunkType::Documentation
+        );
+        assert_eq!(
+            "doc".parse::<ChunkType>().unwrap(),
+            ChunkType::Documentation
+        );
+        assert_eq!(
+            "docs".parse::<ChunkType>().unwrap(),
+            ChunkType::Documentation
+        );
     }
 
     #[test]
     fn test_chunk_type_from_str_case_insensitive() {
-        assert_eq!("FUNCTION".parse::<ChunkType>().unwrap(), ChunkType::Function);
-        assert_eq!("Documentation".parse::<ChunkType>().unwrap(), ChunkType::Documentation);
+        assert_eq!(
+            "FUNCTION".parse::<ChunkType>().unwrap(),
+            ChunkType::Function
+        );
+        assert_eq!(
+            "Documentation".parse::<ChunkType>().unwrap(),
+            ChunkType::Documentation
+        );
         assert_eq!("EXAMPLE".parse::<ChunkType>().unwrap(), ChunkType::Example);
     }
 

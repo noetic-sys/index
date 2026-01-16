@@ -33,8 +33,8 @@ pub struct SearchCmd {
 
 impl SearchCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir = local::get_index_dir()
-            .context("No .index directory found. Run `idx init` first.")?;
+        let index_dir =
+            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
 
         let start = std::time::Instant::now();
         let search = LocalSearch::new(&index_dir).await?;
@@ -79,12 +79,7 @@ impl SearchCmd {
                     println!("   ---");
                 }
             } else {
-                let snippet: String = r
-                    .snippet
-                    .lines()
-                    .take(3)
-                    .collect::<Vec<_>>()
-                    .join("\n   ");
+                let snippet: String = r.snippet.lines().take(3).collect::<Vec<_>>().join("\n   ");
                 println!("   {}", snippet);
             }
             println!();

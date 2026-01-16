@@ -6,8 +6,8 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use quick_xml::events::Event;
 use quick_xml::Reader;
+use quick_xml::events::Event;
 
 use super::Dependency;
 
@@ -178,7 +178,10 @@ fn parse_dependencies(
 }
 
 /// Resolve ${property} references in version strings.
-fn resolve_property(version: &str, properties: &std::collections::HashMap<String, String>) -> String {
+fn resolve_property(
+    version: &str,
+    properties: &std::collections::HashMap<String, String>,
+) -> String {
     if version.starts_with("${") && version.ends_with("}") {
         let prop_name = &version[2..version.len() - 1];
         if let Some(resolved) = properties.get(prop_name) {

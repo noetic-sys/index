@@ -53,13 +53,9 @@ impl StatusCmd {
             .collect();
 
         // Find gaps
-        let missing: Vec<_> = manifest_set
-            .difference(&indexed_set)
-            .collect();
+        let missing: Vec<_> = manifest_set.difference(&indexed_set).collect();
 
-        let extra: Vec<_> = indexed_set
-            .difference(&manifest_set)
-            .collect();
+        let extra: Vec<_> = indexed_set.difference(&manifest_set).collect();
 
         // Print status
         println!("Index: {}", index_dir.display());

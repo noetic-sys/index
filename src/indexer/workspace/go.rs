@@ -70,6 +70,9 @@ use (
     #[test]
     fn test_go_mod_name() {
         let content = "module github.com/acme/myapp\n\ngo 1.21";
-        assert_eq!(parse_name(content), Some("github.com/acme/myapp".to_string()));
+        assert_eq!(
+            parse_name(content),
+            Some("github.com/acme/myapp".to_string())
+        );
     }
 }

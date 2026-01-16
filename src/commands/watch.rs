@@ -6,15 +6,18 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::types::Registry;
 use anyhow::{Context, Result};
 use clap::Args;
 use futures::stream::{self, StreamExt};
-use crate::types::Registry;
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 
 use crate::local::{self, LocalIndexer};
-use crate::manifests::{parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps, parse_python_deps, Dependency};
+use crate::manifests::{
+    Dependency, parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps,
+    parse_python_deps,
+};
 
 #[derive(Args)]
 pub struct WatchCmd {
@@ -29,8 +32,8 @@ pub struct WatchCmd {
 
 impl WatchCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir = local::get_index_dir()
-            .context("No .index directory found. Run `idx init` first.")?;
+        let index_dir =
+            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
 
         println!("Watching {} for manifest changes...", self.path.display());
         println!("Press Ctrl+C to stop.\n");
@@ -76,7 +79,9 @@ impl WatchCmd {
                             if let Some(member_path) = member.as_str() {
                                 let member_toml = self.path.join(member_path).join("Cargo.toml");
                                 if member_toml.exists() {
-                                    watcher.watch(&member_toml, RecursiveMode::NonRecursive).ok();
+                                    watcher
+                                        .watch(&member_toml, RecursiveMode::NonRecursive)
+                                        .ok();
                                 }
                             }
                         }
@@ -142,7 +147,9 @@ impl WatchCmd {
         // Find new packages to index
         let to_index: Vec<Dependency> = manifest_deps
             .into_iter()
-            .filter(|d| !indexed_set.contains(&(d.registry.clone(), d.name.clone(), d.version.clone())))
+            .filter(|d| {
+                !indexed_set.contains(&(d.registry.clone(), d.name.clone(), d.version.clone()))
+            })
             .collect();
 
         if to_index.is_empty() {
@@ -167,9 +174,15 @@ impl WatchCmd {
                         return;
                     }
                 };
-                match indexer.index_package(registry, &dep.name, &dep.version).await {
+                match indexer
+                    .index_package(registry, &dep.name, &dep.version)
+                    .await
+                {
                     Ok(result) => {
-                        println!("  {}@{} -> {} chunks", dep.name, dep.version, result.chunks_indexed);
+                        println!(
+                            "  {}@{} -> {} chunks",
+                            dep.name, dep.version, result.chunks_indexed
+                        );
                         indexed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
                     Err(e) => {

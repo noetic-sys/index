@@ -115,7 +115,10 @@ mod tests {
 
     #[test]
     fn test_language_from_path() {
-        assert_eq!(Language::from_path("src/index.ts"), Some(Language::TypeScript));
+        assert_eq!(
+            Language::from_path("src/index.ts"),
+            Some(Language::TypeScript)
+        );
         assert_eq!(Language::from_path("lib/utils.py"), Some(Language::Python));
         assert_eq!(Language::from_path("main.rs"), Some(Language::Rust));
     }

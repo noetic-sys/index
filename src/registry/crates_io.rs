@@ -182,7 +182,10 @@ fn extract_tarball(data: &[u8]) -> Result<Vec<PackageFile>, RegistryError> {
         }
     }
 
-    debug!(file_count = files.len(), "extracted source files from tarball");
+    debug!(
+        file_count = files.len(),
+        "extracted source files from tarball"
+    );
     Ok(files)
 }
 

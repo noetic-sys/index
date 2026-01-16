@@ -1,7 +1,7 @@
 //! Markdown parser for extracting code blocks from documentation files.
 
-use tree_sitter::{Node, Parser};
 use crate::types::{ChunkType, Visibility};
+use tree_sitter::{Node, Parser};
 
 use crate::indexer::chunk::{ChunkBuilder, CodeChunk};
 use crate::indexer::error::IndexerError;
@@ -28,7 +28,11 @@ impl MarkdownParser {
         Ok(parser)
     }
 
-    fn extract_chunks(&self, source: &str, file_path: &str) -> Result<Vec<CodeChunk>, IndexerError> {
+    fn extract_chunks(
+        &self,
+        source: &str,
+        file_path: &str,
+    ) -> Result<Vec<CodeChunk>, IndexerError> {
         let mut parser = Self::create_parser()?;
         let tree = parser
             .parse(source, None)
@@ -36,7 +40,13 @@ impl MarkdownParser {
 
         let mut chunks = Vec::new();
         let mut chunk_index = 0;
-        self.visit_node(tree.root_node(), source, file_path, &mut chunks, &mut chunk_index);
+        self.visit_node(
+            tree.root_node(),
+            source,
+            file_path,
+            &mut chunks,
+            &mut chunk_index,
+        );
         Ok(chunks)
     }
 

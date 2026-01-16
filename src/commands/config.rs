@@ -69,7 +69,14 @@ impl ConfigCmd {
                 let config = LocalConfig::load()?;
                 println!("Config: {}", LocalConfig::config_path()?.display());
                 println!();
-                println!("api_key:    {}", if config.has_openai_key() { "(set)" } else { "(not set)" });
+                println!(
+                    "api_key:    {}",
+                    if config.has_openai_key() {
+                        "(set)"
+                    } else {
+                        "(not set)"
+                    }
+                );
                 println!("base_url:   {}", config.openai_base_url);
                 println!("model:      {}", config.embedding_model);
             }
