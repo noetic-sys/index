@@ -14,8 +14,8 @@ use futures::stream::{self, StreamExt};
 
 use crate::local::{self, LocalIndexer};
 use crate::manifests::{
-    Dependency, parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps,
-    parse_python_deps,
+    Dependency, discover_manifest_dirs, parse_cargo_deps, parse_go_deps, parse_maven_deps,
+    parse_npm_deps, parse_python_deps,
 };
 
 #[derive(Args)]
@@ -169,29 +169,44 @@ impl InitCmd {
     fn collect_dependencies(&self) -> Result<Vec<Dependency>> {
         let mut all_deps = Vec::new();
 
-        // npm
-        if let Ok(deps) = parse_npm_deps(&self.path) {
-            all_deps.extend(deps);
+        // Discover all manifest directories (handles monorepos)
+        let manifest_dirs = discover_manifest_dirs(&self.path)?;
+
+        if manifest_dirs.is_empty() {
+            return Ok(vec![]);
         }
 
-        // cargo
-        if let Ok(deps) = parse_cargo_deps(&self.path) {
-            all_deps.extend(deps);
+        // Show discovered roots if more than one
+        if manifest_dirs.len() > 1 {
+            println!("Found {} project roots:", manifest_dirs.len());
+            for dir in &manifest_dirs {
+                let rel = dir.strip_prefix(&self.path).unwrap_or(dir).display();
+                let rel_str = rel.to_string();
+                if rel_str.is_empty() {
+                    println!("  .");
+                } else {
+                    println!("  {}", rel_str);
+                }
+            }
         }
 
-        // python
-        if let Ok(deps) = parse_python_deps(&self.path) {
-            all_deps.extend(deps);
-        }
-
-        // maven
-        if let Ok(deps) = parse_maven_deps(&self.path) {
-            all_deps.extend(deps);
-        }
-
-        // go
-        if let Ok(deps) = parse_go_deps(&self.path) {
-            all_deps.extend(deps);
+        // Parse manifests from each discovered directory
+        for dir in &manifest_dirs {
+            if let Ok(deps) = parse_npm_deps(dir) {
+                all_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_cargo_deps(dir) {
+                all_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_python_deps(dir) {
+                all_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_maven_deps(dir) {
+                all_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_go_deps(dir) {
+                all_deps.extend(deps);
+            }
         }
 
         // Dedupe by (registry, name) - keep first occurrence
