@@ -60,7 +60,7 @@ impl CodeChunk {
 
         // Include a preview of the code (not the whole thing for large chunks)
         let code_preview = if self.code.len() > 1000 {
-            &self.code[..1000]
+            &self.code[..self.code.floor_char_boundary(1000)]
         } else {
             &self.code
         };
@@ -264,5 +264,44 @@ mod tests {
 
         let snippet = chunk.snippet(100);
         assert!(snippet.len() <= 100);
+    }
+
+    #[test]
+    fn test_embedding_text_utf8_boundary() {
+        // Create code with multi-byte UTF-8 characters near the 1000 byte boundary
+        // '─' is 3 bytes (E2 94 80), so we need to test truncation doesn't panic
+        let mut code = "a".repeat(998);
+        code.push_str("─────"); // Each ─ is 3 bytes
+
+        let chunk = ChunkBuilder::new()
+            .chunk_type(ChunkType::Function)
+            .name("test")
+            .code(code)
+            .file_path("test.rs")
+            .location(1, 1, 0, 100)
+            .build()
+            .unwrap();
+
+        // Should not panic
+        let text = chunk.embedding_text();
+        assert!(!text.is_empty());
+    }
+
+    #[test]
+    fn test_embedding_text_truncates_long_code() {
+        let code = "x".repeat(2000);
+
+        let chunk = ChunkBuilder::new()
+            .chunk_type(ChunkType::Function)
+            .name("test")
+            .code(code)
+            .file_path("test.rs")
+            .location(1, 1, 0, 2000)
+            .build()
+            .unwrap();
+
+        let text = chunk.embedding_text();
+        // Should be truncated to ~1000 bytes, not the full 2000
+        assert!(text.len() < 1500);
     }
 }
