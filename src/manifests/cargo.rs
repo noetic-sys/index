@@ -84,13 +84,19 @@ fn collect_direct_deps(dir: &Path) -> Result<HashMap<String, String>> {
         && let Some(members) = workspace.get("members").and_then(|m| m.as_array())
     {
         for member in members {
-            if let Some(member_path) = member.as_str() {
-                let member_toml = dir.join(member_path).join("Cargo.toml");
-                if member_toml.exists()
-                    && let Ok(content) = std::fs::read_to_string(&member_toml)
-                    && let Ok(toml) = content.parse::<toml::Value>()
-                {
-                    all_deps.extend(extract_deps(&toml, &workspace_versions));
+            if let Some(member_pattern) = member.as_str() {
+                // Expand glob patterns like "crates/*"
+                let pattern = dir.join(member_pattern).join("Cargo.toml");
+                let pattern_str = pattern.to_string_lossy();
+
+                if let Ok(paths) = glob::glob(&pattern_str) {
+                    for entry in paths.flatten() {
+                        if let Ok(content) = std::fs::read_to_string(&entry)
+                            && let Ok(toml) = content.parse::<toml::Value>()
+                        {
+                            all_deps.extend(extract_deps(&toml, &workspace_versions));
+                        }
+                    }
                 }
             }
         }
@@ -183,6 +189,8 @@ fn clean_version(version: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_clean_version() {
@@ -191,5 +199,126 @@ mod tests {
         assert_eq!(clean_version("~1.0.0"), Some("1.0.0".to_string()));
         assert_eq!(clean_version(">=1.0, <2.0"), None);
         assert_eq!(clean_version("*"), None);
+    }
+
+    #[test]
+    fn test_workspace_glob_members() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+
+        // Create workspace root
+        fs::write(
+            root.join("Cargo.toml"),
+            r#"
+[workspace]
+members = ["crates/*"]
+
+[workspace.dependencies]
+serde = "1.0"
+"#,
+        )
+        .unwrap();
+
+        // Create crates/foo
+        fs::create_dir_all(root.join("crates/foo")).unwrap();
+        fs::write(
+            root.join("crates/foo/Cargo.toml"),
+            r#"
+[package]
+name = "foo"
+version = "0.1.0"
+
+[dependencies]
+serde = { workspace = true }
+tokio = "1.0"
+"#,
+        )
+        .unwrap();
+
+        // Create crates/bar
+        fs::create_dir_all(root.join("crates/bar")).unwrap();
+        fs::write(
+            root.join("crates/bar/Cargo.toml"),
+            r#"
+[package]
+name = "bar"
+version = "0.1.0"
+
+[dependencies]
+anyhow = "1.0"
+"#,
+        )
+        .unwrap();
+
+        let deps = parse_cargo_deps(root).unwrap();
+        let names: Vec<_> = deps.iter().map(|d| d.name.as_str()).collect();
+
+        assert!(names.contains(&"serde"), "should find serde from workspace");
+        assert!(
+            names.contains(&"tokio"),
+            "should find tokio from crates/foo"
+        );
+        assert!(
+            names.contains(&"anyhow"),
+            "should find anyhow from crates/bar"
+        );
+    }
+
+    #[test]
+    fn test_workspace_explicit_members() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+
+        // Create workspace with explicit member paths
+        fs::write(
+            root.join("Cargo.toml"),
+            r#"
+[workspace]
+members = ["packages/core", "packages/cli"]
+"#,
+        )
+        .unwrap();
+
+        // Create packages/core
+        fs::create_dir_all(root.join("packages/core")).unwrap();
+        fs::write(
+            root.join("packages/core/Cargo.toml"),
+            r#"
+[package]
+name = "core"
+version = "0.1.0"
+
+[dependencies]
+reqwest = "0.11"
+"#,
+        )
+        .unwrap();
+
+        // Create packages/cli
+        fs::create_dir_all(root.join("packages/cli")).unwrap();
+        fs::write(
+            root.join("packages/cli/Cargo.toml"),
+            r#"
+[package]
+name = "cli"
+version = "0.1.0"
+
+[dependencies]
+clap = "4.0"
+"#,
+        )
+        .unwrap();
+
+        let deps = parse_cargo_deps(root).unwrap();
+        let names: Vec<_> = deps.iter().map(|d| d.name.as_str()).collect();
+
+        assert!(
+            names.contains(&"reqwest"),
+            "should find reqwest from packages/core"
+        );
+        assert!(
+            names.contains(&"clap"),
+            "should find clap from packages/cli"
+        );
     }
 }
