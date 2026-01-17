@@ -182,7 +182,9 @@ impl LocalIndexer {
 
         // Insert into vector store
         if let Err(e) = self.vectors.insert(&namespace, vector_records).await {
-            self.db.mark_version_failed(&version_id, &e.to_string()).await?;
+            // Include full error chain
+            let error_msg = format!("{:#}", e);
+            self.db.mark_version_failed(&version_id, &error_msg).await?;
             return Err(e);
         }
 

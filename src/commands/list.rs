@@ -76,6 +76,13 @@ impl ListCmd {
                     VersionStatus::Pending => " [pending]",
                 };
                 println!("{}:{}@{}{}", ver.registry, ver.name, ver.version, status_str);
+
+                // Show error message for failed packages
+                if status == VersionStatus::Failed {
+                    if let Some(ref err) = ver.error_message {
+                        println!("  └─ {}", err);
+                    }
+                }
             }
         }
 

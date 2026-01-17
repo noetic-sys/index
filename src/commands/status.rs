@@ -86,7 +86,7 @@ impl StatusCmd {
         println!();
         println!("Indexed:  {} packages", indexed_set.len());
         if failed_count > 0 {
-            println!("Failed:   {} packages", failed_count);
+            println!("Failed:   {} packages (run `idx list -s failed` to see errors)", failed_count);
         }
         if skipped_count > 0 {
             println!("Skipped:  {} packages", skipped_count);
