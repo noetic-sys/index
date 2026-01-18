@@ -88,9 +88,10 @@ impl ListCmd {
 
                 // Show error message for failed packages
                 if status == VersionStatus::Failed
-                    && let Some(ref err) = ver.error_message {
-                        println!("  └─ {}", err);
-                    }
+                    && let Some(ref err) = ver.error_message
+                {
+                    println!("  └─ {}", err);
+                }
             }
         }
 
