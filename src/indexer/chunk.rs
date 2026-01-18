@@ -302,19 +302,19 @@ mod tests {
 
     #[test]
     fn test_embedding_text_truncates_long_code() {
-        let code = "x".repeat(2000);
+        let code = "x".repeat(5000);
 
         let chunk = ChunkBuilder::new()
             .chunk_type(ChunkType::Function)
             .name("test")
             .code(code)
             .file_path("test.rs")
-            .location(1, 1, 0, 2000)
+            .location(1, 1, 0, 5000)
             .build()
             .unwrap();
 
         let text = chunk.embedding_text();
-        // Should be truncated to ~1000 bytes, not the full 2000
-        assert!(text.len() < 1500);
+        // Should be truncated to ~2000 chars (MAX_CODE_CHARS), not the full 5000
+        assert!(text.len() < 2500);
     }
 }
