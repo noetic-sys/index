@@ -1,12 +1,13 @@
 //! Update command - re-index packages with changed versions.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::local::models::VersionStatus;
 use crate::types::Registry;
 use anyhow::{Context, Result};
 use clap::Args;
@@ -14,8 +15,8 @@ use futures::stream::{self, StreamExt};
 
 use crate::local::{self, LocalIndexer};
 use crate::manifests::{
-    Dependency, parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps,
-    parse_python_deps,
+    Dependency, discover_manifest_dirs, parse_cargo_deps, parse_go_deps, parse_maven_deps,
+    parse_npm_deps, parse_python_deps,
 };
 
 #[derive(Args)]
@@ -40,36 +41,49 @@ impl UpdateCmd {
 
         let indexer = Arc::new(LocalIndexer::new(&index_dir).await?);
 
-        // Get indexed packages: (registry, name) -> version
-        let indexed_packages = indexer.db().list_packages().await?;
-        let indexed_versions: HashMap<(String, String), String> = indexed_packages
+        // Get indexed versions: (registry, name) -> version (only for indexed status)
+        let indexed_versions = indexer.db().list_versions().await?;
+        let indexed_map: HashMap<(String, String), String> = indexed_versions
             .iter()
-            .map(|p| ((p.registry.clone(), p.name.clone()), p.version.clone()))
+            .filter(|v| v.status() == VersionStatus::Indexed)
+            .map(|v| ((v.registry.clone(), v.name.clone()), v.version.clone()))
             .collect();
 
-        // Get manifest dependencies
+        // Get manifest dependencies from all discovered roots
+        let manifest_dirs = discover_manifest_dirs(&self.path)?;
         let mut manifest_deps = Vec::new();
-        if let Ok(deps) = parse_npm_deps(&self.path) {
-            manifest_deps.extend(deps);
-        }
-        if let Ok(deps) = parse_cargo_deps(&self.path) {
-            manifest_deps.extend(deps);
-        }
-        if let Ok(deps) = parse_python_deps(&self.path) {
-            manifest_deps.extend(deps);
-        }
-        if let Ok(deps) = parse_maven_deps(&self.path) {
-            manifest_deps.extend(deps);
-        }
-        if let Ok(deps) = parse_go_deps(&self.path) {
-            manifest_deps.extend(deps);
+
+        for dir in &manifest_dirs {
+            if let Ok(deps) = parse_npm_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_cargo_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_python_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_maven_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_go_deps(dir) {
+                manifest_deps.extend(deps);
+            }
         }
 
         // Find packages that need updating (version changed or new)
         let mut to_update: Vec<Dependency> = Vec::new();
+        let mut seen: HashSet<(String, String)> = HashSet::new();
+
         for dep in manifest_deps {
             let key = (dep.registry.clone(), dep.name.clone());
-            match indexed_versions.get(&key) {
+
+            // Skip duplicates from multiple manifest roots
+            if seen.contains(&key) {
+                continue;
+            }
+
+            match indexed_map.get(&key) {
                 Some(indexed_version) if indexed_version == &dep.version => {
                     // Already indexed at correct version
                 }
@@ -81,6 +95,7 @@ impl UpdateCmd {
                             dep.name, indexed_version, dep.version
                         );
                     }
+                    seen.insert(key);
                     to_update.push(dep);
                 }
                 None => {
@@ -88,6 +103,7 @@ impl UpdateCmd {
                     if self.verbose {
                         println!("  {}@{} (new)", dep.name, dep.version);
                     }
+                    seen.insert(key);
                     to_update.push(dep);
                 }
             }

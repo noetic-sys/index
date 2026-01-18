@@ -1,12 +1,14 @@
 //! Manifest file parsing for dependency extraction.
 
 mod cargo;
+mod discover;
 mod go;
 mod maven;
 mod npm;
 mod python;
 
 pub use cargo::parse_cargo_deps;
+pub use discover::discover_manifest_dirs;
 pub use go::parse_go_deps;
 pub use maven::parse_maven_deps;
 pub use npm::parse_npm_deps;

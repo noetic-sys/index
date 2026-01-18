@@ -117,11 +117,11 @@ impl WatchCmd {
     async fn sync_index(&self, index_dir: &std::path::Path) -> Result<()> {
         let indexer = Arc::new(LocalIndexer::new(index_dir).await?);
 
-        // Get indexed packages
-        let indexed_packages = indexer.db().list_packages().await?;
-        let indexed_set: HashSet<(String, String, String)> = indexed_packages
+        // Get indexed versions
+        let indexed_versions = indexer.db().list_versions().await?;
+        let indexed_set: HashSet<(String, String, String)> = indexed_versions
             .iter()
-            .map(|p| (p.registry.clone(), p.name.clone(), p.version.clone()))
+            .map(|v| (v.registry.clone(), v.name.clone(), v.version.clone()))
             .collect();
 
         // Get manifest dependencies

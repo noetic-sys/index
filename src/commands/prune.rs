@@ -7,7 +7,10 @@ use anyhow::{Context, Result};
 use clap::Args;
 
 use crate::local::{self, LocalIndexer};
-use crate::manifests::{parse_cargo_deps, parse_npm_deps, parse_python_deps};
+use crate::manifests::{
+    discover_manifest_dirs, parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps,
+    parse_python_deps,
+};
 
 #[derive(Args)]
 pub struct PruneCmd {
@@ -31,19 +34,29 @@ impl PruneCmd {
 
         let indexer = LocalIndexer::new(&index_dir).await?;
 
-        // Get indexed packages
-        let indexed_packages = indexer.db().list_packages().await?;
+        // Get indexed versions
+        let indexed_versions = indexer.db().list_versions().await?;
 
-        // Get manifest dependencies
+        // Get manifest dependencies from all discovered roots
+        let manifest_dirs = discover_manifest_dirs(&self.path)?;
         let mut manifest_deps = Vec::new();
-        if let Ok(deps) = parse_npm_deps(&self.path) {
-            manifest_deps.extend(deps);
-        }
-        if let Ok(deps) = parse_cargo_deps(&self.path) {
-            manifest_deps.extend(deps);
-        }
-        if let Ok(deps) = parse_python_deps(&self.path) {
-            manifest_deps.extend(deps);
+
+        for dir in &manifest_dirs {
+            if let Ok(deps) = parse_npm_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_cargo_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_python_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_maven_deps(dir) {
+                manifest_deps.extend(deps);
+            }
+            if let Ok(deps) = parse_go_deps(dir) {
+                manifest_deps.extend(deps);
+            }
         }
 
         let manifest_set: HashSet<(String, String)> = manifest_deps
@@ -51,10 +64,10 @@ impl PruneCmd {
             .map(|d| (d.registry.clone(), d.name.clone()))
             .collect();
 
-        // Find packages to prune (indexed but not in manifest)
-        let to_prune: Vec<_> = indexed_packages
+        // Find versions to prune (indexed but not in manifest)
+        let to_prune: Vec<_> = indexed_versions
             .iter()
-            .filter(|p| !manifest_set.contains(&(p.registry.clone(), p.name.clone())))
+            .filter(|v| !manifest_set.contains(&(v.registry.clone(), v.name.clone())))
             .collect();
 
         if to_prune.is_empty() {
@@ -63,8 +76,8 @@ impl PruneCmd {
         }
 
         println!("Packages to remove ({}):", to_prune.len());
-        for pkg in &to_prune {
-            println!("  {}:{}@{}", pkg.registry, pkg.name, pkg.version);
+        for ver in &to_prune {
+            println!("  {}:{}@{}", ver.registry, ver.name, ver.version);
         }
 
         if self.dry_run {
@@ -85,11 +98,11 @@ impl PruneCmd {
             }
         }
 
-        // Remove packages
+        // Remove versions
         let mut removed = 0;
-        for pkg in &to_prune {
+        for ver in &to_prune {
             // Delete from db
-            let namespaces = indexer.db().delete_package(&pkg.id).await?;
+            let namespaces = indexer.db().delete_version(&ver.version_id).await?;
 
             // Delete from vector store
             for ns in &namespaces {
@@ -99,7 +112,7 @@ impl PruneCmd {
             // Delete from blob storage
             indexer
                 .storage()
-                .delete_package(&pkg.registry, &pkg.name, &pkg.version)
+                .delete_package(&ver.registry, &ver.name, &ver.version)
                 .await?;
 
             removed += 1;

@@ -3,8 +3,8 @@
 use clap::{Parser, Subcommand};
 
 use crate::commands::{
-    CleanCmd, ConfigCmd, IndexCmd, InitCmd, ListCmd, McpCmd, PruneCmd, RemoveCmd, SearchCmd,
-    StatsCmd, StatusCmd, UpdateCmd, WatchCmd,
+    CleanCmd, ConfigCmd, IndexCmd, InitCmd, ListCmd, McpCmd, PruneCmd, RemoveCmd, RetryCmd,
+    SearchCmd, SkipCmd, StatsCmd, StatusCmd, UpdateCmd, WatchCmd,
 };
 
 #[derive(Parser)]
@@ -45,6 +45,12 @@ pub enum Command {
     /// Remove a package from the index
     Remove(RemoveCmd),
 
+    /// Mark a package as skipped (won't be indexed)
+    Skip(SkipCmd),
+
+    /// Retry a failed/skipped package
+    Retry(RetryCmd),
+
     /// Remove packages no longer in manifests
     Prune(PruneCmd),
 
@@ -70,6 +76,8 @@ impl Command {
             Command::Stats(cmd) => cmd.run().await,
             Command::Status(cmd) => cmd.run().await,
             Command::Remove(cmd) => cmd.run().await,
+            Command::Skip(cmd) => cmd.run().await,
+            Command::Retry(cmd) => cmd.run().await,
             Command::Prune(cmd) => cmd.run().await,
             Command::Clean(cmd) => cmd.run().await,
             Command::Mcp(cmd) => cmd.run().await,

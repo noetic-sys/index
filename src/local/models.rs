@@ -4,18 +4,61 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 // ============================================================================
+// Version Status
+// ============================================================================
+
+/// Indexing status for a package version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum VersionStatus {
+    /// Currently being indexed
+    #[default]
+    Pending,
+    /// Successfully indexed
+    Indexed,
+    /// Indexing failed
+    Failed,
+    /// User explicitly skipped
+    Skipped,
+}
+
+impl std::fmt::Display for VersionStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pending => write!(f, "pending"),
+            Self::Indexed => write!(f, "indexed"),
+            Self::Failed => write!(f, "failed"),
+            Self::Skipped => write!(f, "skipped"),
+        }
+    }
+}
+
+impl std::str::FromStr for VersionStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "pending" => Ok(Self::Pending),
+            "indexed" => Ok(Self::Indexed),
+            "failed" => Ok(Self::Failed),
+            "skipped" => Ok(Self::Skipped),
+            _ => Err(format!("invalid version status: {}", s)),
+        }
+    }
+}
+
+// ============================================================================
 // Package Models
 // ============================================================================
 
-/// A package row from the local index.
+/// A package row from the local index (unique by registry + name).
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct PackageRow {
     pub id: String,
     pub registry: String,
     pub name: String,
-    pub version: String,
     pub description: Option<String>,
-    pub indexed_at: String,
+    pub created_at: String,
 }
 
 /// Input for creating a package.
@@ -23,8 +66,65 @@ pub struct PackageRow {
 pub struct CreatePackage {
     pub registry: String,
     pub name: String,
-    pub version: String,
     pub description: Option<String>,
+}
+
+// ============================================================================
+// Version Models
+// ============================================================================
+
+/// A package version row from the local index.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct VersionRow {
+    pub id: String,
+    pub package_id: String,
+    pub version: String,
+    pub status: String, // stored as text, convert with VersionStatus
+    pub error_message: Option<String>,
+    pub chunk_count: i32,
+    pub indexed_at: Option<String>,
+    pub created_at: String,
+}
+
+impl VersionRow {
+    pub fn status(&self) -> VersionStatus {
+        self.status.parse().unwrap_or_default()
+    }
+}
+
+/// Version with joined package info.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct VersionWithPackage {
+    // Version fields
+    pub version_id: String,
+    pub version: String,
+    pub status: String,
+    pub error_message: Option<String>,
+    pub chunk_count: i32,
+    pub indexed_at: Option<String>,
+    // Package fields
+    pub package_id: String,
+    pub registry: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+impl VersionWithPackage {
+    pub fn status(&self) -> VersionStatus {
+        self.status.parse().unwrap_or_default()
+    }
+
+    /// Build the namespace string for this version.
+    pub fn namespace(&self) -> String {
+        format!("{}/{}/{}", self.registry, self.name, self.version)
+    }
+}
+
+/// Input for creating a version.
+#[derive(Debug, Clone)]
+pub struct CreateVersion {
+    pub package_id: String,
+    pub version: String,
 }
 
 // ============================================================================
@@ -35,7 +135,7 @@ pub struct CreatePackage {
 #[derive(Debug, Clone, FromRow)]
 pub struct ChunkRow {
     pub id: String,
-    pub package_id: String,
+    pub version_id: String,
     pub namespace: String,
     pub chunk_type: String,
     pub name: String,
@@ -51,7 +151,7 @@ pub struct ChunkRow {
     pub vector: Vec<u8>,
 }
 
-/// Chunk with joined package info.
+/// Chunk with joined package/version info.
 #[derive(Debug, Clone, FromRow)]
 pub struct ChunkWithPackage {
     pub id: String,
@@ -75,7 +175,7 @@ pub struct ChunkWithPackage {
 #[derive(Debug, Clone)]
 pub struct CreateChunk {
     pub id: String,
-    pub package_id: String,
+    pub version_id: String,
     pub namespace: String,
     pub chunk_type: String,
     pub name: String,
@@ -129,6 +229,21 @@ impl VectorSearchHit {
 }
 
 // ============================================================================
+// Stats Models
+// ============================================================================
+
+/// Index statistics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexStats {
+    pub package_count: u32,
+    pub version_count: u32,
+    pub indexed_count: u32,
+    pub failed_count: u32,
+    pub skipped_count: u32,
+    pub chunk_count: u32,
+}
+
+// ============================================================================
 // Search Models
 // ============================================================================
 
@@ -179,5 +294,15 @@ mod tests {
         for (a, b) in original.iter().zip(recovered.iter()) {
             assert!((a - b).abs() < 1e-6);
         }
+    }
+
+    #[test]
+    fn test_version_status() {
+        assert_eq!(VersionStatus::Pending.to_string(), "pending");
+        assert_eq!(
+            "indexed".parse::<VersionStatus>(),
+            Ok(VersionStatus::Indexed)
+        );
+        assert!("invalid".parse::<VersionStatus>().is_err());
     }
 }
