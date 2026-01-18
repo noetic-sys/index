@@ -47,7 +47,12 @@ impl VectorStore {
             .create_table(&table_name, Box::new(batches))
             .execute()
             .await
-            .with_context(|| format!("Failed to create table '{}' (namespace: {})", table_name, namespace))?;
+            .with_context(|| {
+                format!(
+                    "Failed to create table '{}' (namespace: {})",
+                    table_name, namespace
+                )
+            })?;
 
         Ok(table)
     }
@@ -245,14 +250,12 @@ fn sanitize_table_name(namespace: &str) -> String {
     // LanceDB: "Table names can only contain alphanumeric characters, underscores, hyphens, and periods"
     // We need to escape: / and @
     namespace
-        .replace('/', "--S--")  // slash
-        .replace('@', "--A--")  // at
+        .replace('/', "--S--") // slash
+        .replace('@', "--A--") // at
 }
 
 fn unsanitize_table_name(table_name: &str) -> String {
-    table_name
-        .replace("--S--", "/")
-        .replace("--A--", "@")
+    table_name.replace("--S--", "/").replace("--A--", "@")
 }
 
 #[cfg(test)]

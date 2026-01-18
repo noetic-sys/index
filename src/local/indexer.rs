@@ -77,10 +77,7 @@ impl LocalIndexer {
             .await?;
 
         // Get or create version
-        let (version_id, should_skip) = self
-            .db
-            .get_or_create_version(&package_id, version)
-            .await?;
+        let (version_id, should_skip) = self.db.get_or_create_version(&package_id, version).await?;
 
         if should_skip {
             info!("version already indexed or skipped");
@@ -100,11 +97,15 @@ impl LocalIndexer {
             let pkg_info = client.get_version(name, version).await?;
             let files = client.download_source(name, version).await?;
             Ok::<_, anyhow::Error>((pkg_info, files))
-        }.await {
+        }
+        .await
+        {
             Ok(result) => result,
             Err(e) => {
                 // Mark as failed
-                self.db.mark_version_failed(&version_id, &e.to_string()).await?;
+                self.db
+                    .mark_version_failed(&version_id, &e.to_string())
+                    .await?;
                 return Err(e);
             }
         };
@@ -130,7 +131,9 @@ impl LocalIndexer {
         let embeddings = match self.generate_embeddings(&chunks).await {
             Ok(e) => e,
             Err(e) => {
-                self.db.mark_version_failed(&version_id, &e.to_string()).await?;
+                self.db
+                    .mark_version_failed(&version_id, &e.to_string())
+                    .await?;
                 return Err(e);
             }
         };
@@ -190,14 +193,18 @@ impl LocalIndexer {
 
         // Insert into SQLite
         if let Err(e) = self.db.insert_chunks(&db_chunks).await {
-            self.db.mark_version_failed(&version_id, &e.to_string()).await?;
+            self.db
+                .mark_version_failed(&version_id, &e.to_string())
+                .await?;
             return Err(e);
         }
 
         let chunks_indexed = db_chunks.len();
 
         // Mark as successfully indexed
-        self.db.mark_version_indexed(&version_id, chunks_indexed as i32).await?;
+        self.db
+            .mark_version_indexed(&version_id, chunks_indexed as i32)
+            .await?;
 
         info!(chunks_indexed, "indexing complete");
 

@@ -299,7 +299,10 @@ mod tests {
     #[test]
     fn test_version_status() {
         assert_eq!(VersionStatus::Pending.to_string(), "pending");
-        assert_eq!("indexed".parse::<VersionStatus>(), Ok(VersionStatus::Indexed));
+        assert_eq!(
+            "indexed".parse::<VersionStatus>(),
+            Ok(VersionStatus::Indexed)
+        );
         assert!("invalid".parse::<VersionStatus>().is_err());
     }
 }

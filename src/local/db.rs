@@ -411,12 +411,10 @@ impl LocalDb {
 
     /// Mark a version for retry (set status to pending).
     pub async fn mark_version_pending(&self, version_id: &str) -> Result<()> {
-        sqlx::query(
-            "UPDATE versions SET status = 'pending', error_message = NULL WHERE id = ?",
-        )
-        .bind(version_id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE versions SET status = 'pending', error_message = NULL WHERE id = ?")
+            .bind(version_id)
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }
@@ -569,15 +567,13 @@ impl LocalDb {
 
     /// Get index statistics.
     pub async fn get_stats(&self) -> Result<IndexStats> {
-        let package_count: i32 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM packages")
-                .fetch_one(&self.pool)
-                .await?;
+        let package_count: i32 = sqlx::query_scalar("SELECT COUNT(*) FROM packages")
+            .fetch_one(&self.pool)
+            .await?;
 
-        let version_count: i32 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM versions")
-                .fetch_one(&self.pool)
-                .await?;
+        let version_count: i32 = sqlx::query_scalar("SELECT COUNT(*) FROM versions")
+            .fetch_one(&self.pool)
+            .await?;
 
         let indexed_count: i32 =
             sqlx::query_scalar("SELECT COUNT(*) FROM versions WHERE status = 'indexed'")
@@ -594,10 +590,9 @@ impl LocalDb {
                 .fetch_one(&self.pool)
                 .await?;
 
-        let chunk_count: i32 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM chunks")
-                .fetch_one(&self.pool)
-                .await?;
+        let chunk_count: i32 = sqlx::query_scalar("SELECT COUNT(*) FROM chunks")
+            .fetch_one(&self.pool)
+            .await?;
 
         Ok(IndexStats {
             package_count: package_count as u32,

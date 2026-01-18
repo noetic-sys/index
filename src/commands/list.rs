@@ -3,8 +3,8 @@
 use anyhow::{Context, Result};
 use clap::Args;
 
-use crate::local::{self, LocalIndexer};
 use crate::local::models::VersionStatus;
+use crate::local::{self, LocalIndexer};
 
 #[derive(Args)]
 pub struct ListCmd {
@@ -30,9 +30,12 @@ impl ListCmd {
 
         // Get versions (optionally filtered by status)
         let versions = if let Some(ref status_str) = self.status {
-            let status: VersionStatus = status_str
-                .parse()
-                .map_err(|_| anyhow::anyhow!("Invalid status: {}. Use: indexed, failed, skipped, pending", status_str))?;
+            let status: VersionStatus = status_str.parse().map_err(|_| {
+                anyhow::anyhow!(
+                    "Invalid status: {}. Use: indexed, failed, skipped, pending",
+                    status_str
+                )
+            })?;
             indexer.db().list_versions_by_status(status).await?
         } else {
             indexer.db().list_versions().await?
@@ -40,7 +43,10 @@ impl ListCmd {
 
         if versions.is_empty() {
             if self.status.is_some() {
-                println!("No packages with status '{}'.", self.status.as_ref().unwrap());
+                println!(
+                    "No packages with status '{}'.",
+                    self.status.as_ref().unwrap()
+                );
             } else {
                 println!("No packages indexed yet. Run `idx init` to index your dependencies.");
             }
@@ -75,14 +81,16 @@ impl ListCmd {
                     VersionStatus::Skipped => " [skipped]",
                     VersionStatus::Pending => " [pending]",
                 };
-                println!("{}:{}@{}{}", ver.registry, ver.name, ver.version, status_str);
+                println!(
+                    "{}:{}@{}{}",
+                    ver.registry, ver.name, ver.version, status_str
+                );
 
                 // Show error message for failed packages
-                if status == VersionStatus::Failed {
-                    if let Some(ref err) = ver.error_message {
+                if status == VersionStatus::Failed
+                    && let Some(ref err) = ver.error_message {
                         println!("  └─ {}", err);
                     }
-                }
             }
         }
 
