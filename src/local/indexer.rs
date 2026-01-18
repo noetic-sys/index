@@ -271,10 +271,22 @@ impl LocalIndexer {
         // Batch embeddings (max 100 per request)
         const BATCH_SIZE: usize = 100;
 
-        for batch in chunks.chunks(BATCH_SIZE) {
-            let texts: Vec<String> = batch.iter().map(|c| c.embedding_text()).collect();
+        info!(total_chunks = chunks.len(), "generating embeddings");
 
-            let response = client
+        for (batch_idx, batch) in chunks.chunks(BATCH_SIZE).enumerate() {
+            let texts: Vec<String> = batch.iter().map(|c| c.embedding_text()).collect();
+            let total_chars: usize = texts.iter().map(|t| t.len()).sum();
+
+            let max_text_len = texts.iter().map(|t| t.len()).max().unwrap_or(0);
+            info!(
+                batch = batch_idx + 1,
+                texts = texts.len(),
+                total_chars,
+                max_text_len,
+                "sending embedding batch"
+            );
+
+            let resp = client
                 .post(format!("{}/v1/embeddings", self.config.openai_base_url))
                 .header("Authorization", format!("Bearer {}", api_key))
                 .json(&serde_json::json!({
@@ -283,12 +295,31 @@ impl LocalIndexer {
                 }))
                 .send()
                 .await
-                .context("Failed to call embeddings API")?
-                .error_for_status()
-                .context("Embeddings API returned error")?
-                .json::<EmbeddingResponse>()
-                .await
-                .context("Failed to parse embeddings response")?;
+                .context("Failed to call embeddings API")?;
+
+            let status = resp.status();
+            let body = resp.text().await.context("Failed to read response body")?;
+
+            if !status.is_success() {
+                anyhow::bail!(
+                    "Embeddings API error (batch {}, {} texts, {} chars): {} - {}",
+                    batch_idx + 1,
+                    texts.len(),
+                    total_chars,
+                    status,
+                    body
+                );
+            }
+
+            let response: EmbeddingResponse = serde_json::from_str(&body).with_context(|| {
+                format!(
+                    "Failed to parse embeddings response (batch {}, {} texts, {} chars): {}",
+                    batch_idx + 1,
+                    texts.len(),
+                    total_chars,
+                    body
+                )
+            })?;
 
             for data in response.data {
                 all_embeddings.push(data.embedding);

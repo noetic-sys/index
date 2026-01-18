@@ -48,19 +48,32 @@ impl CodeChunk {
     /// - The API surface (from signature)
     /// - The implementation (from code)
     pub fn embedding_text(&self) -> String {
+        // Limit total size to stay under embedding model token limits (~8k tokens ≈ 32k chars)
+        // Prioritize: signature (most searchable) > docs (context) > code (implementation)
+        const MAX_DOC_CHARS: usize = 4000;
+        const MAX_SIG_CHARS: usize = 1000;
+        const MAX_CODE_CHARS: usize = 2000;
+
         let mut parts = Vec::new();
 
         if let Some(ref doc) = self.documentation {
-            parts.push(doc.as_str());
+            if doc.len() > MAX_DOC_CHARS {
+                parts.push(&doc[..doc.floor_char_boundary(MAX_DOC_CHARS)]);
+            } else {
+                parts.push(doc.as_str());
+            }
         }
 
         if let Some(ref sig) = self.signature {
-            parts.push(sig.as_str());
+            if sig.len() > MAX_SIG_CHARS {
+                parts.push(&sig[..sig.floor_char_boundary(MAX_SIG_CHARS)]);
+            } else {
+                parts.push(sig.as_str());
+            }
         }
 
-        // Include a preview of the code (not the whole thing for large chunks)
-        let code_preview = if self.code.len() > 1000 {
-            &self.code[..self.code.floor_char_boundary(1000)]
+        let code_preview = if self.code.len() > MAX_CODE_CHARS {
+            &self.code[..self.code.floor_char_boundary(MAX_CODE_CHARS)]
         } else {
             &self.code
         };

@@ -1,6 +1,6 @@
 //! Update command - re-index packages with changed versions.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -73,8 +73,16 @@ impl UpdateCmd {
 
         // Find packages that need updating (version changed or new)
         let mut to_update: Vec<Dependency> = Vec::new();
+        let mut seen: HashSet<(String, String)> = HashSet::new();
+
         for dep in manifest_deps {
             let key = (dep.registry.clone(), dep.name.clone());
+
+            // Skip duplicates from multiple manifest roots
+            if seen.contains(&key) {
+                continue;
+            }
+
             match indexed_map.get(&key) {
                 Some(indexed_version) if indexed_version == &dep.version => {
                     // Already indexed at correct version
@@ -87,6 +95,7 @@ impl UpdateCmd {
                             dep.name, indexed_version, dep.version
                         );
                     }
+                    seen.insert(key);
                     to_update.push(dep);
                 }
                 None => {
@@ -94,6 +103,7 @@ impl UpdateCmd {
                     if self.verbose {
                         println!("  {}@{} (new)", dep.name, dep.version);
                     }
+                    seen.insert(key);
                     to_update.push(dep);
                 }
             }
