@@ -88,17 +88,74 @@ jobs:
             dist/checksums.txt
           generate_release_notes: true
 
+      - name: Generate Homebrew Formula
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+
+          # Get SHA256 for each platform
+          SHA_DARWIN_AMD64=$(sha256sum dist/idx-darwin-amd64.tar.gz | cut -d' ' -f1)
+          SHA_DARWIN_ARM64=$(sha256sum dist/idx-darwin-arm64.tar.gz | cut -d' ' -f1)
+          SHA_LINUX_AMD64=$(sha256sum dist/idx-linux-amd64.tar.gz | cut -d' ' -f1)
+          SHA_LINUX_ARM64=$(sha256sum dist/idx-linux-arm64.tar.gz | cut -d' ' -f1)
+
+          cat > idx.rb << 'FORMULA'
+          class Idx < Formula
+            desc "Semantic code search for your dependencies"
+            homepage "https://github.com/noetic-sys/index"
+            version "VERSION_PLACEHOLDER"
+            license "AGPL-3.0-or-later"
+
+            on_macos do
+              on_intel do
+                url "https://github.com/noetic-sys/index/releases/download/vVERSION_PLACEHOLDER/idx-darwin-amd64.tar.gz"
+                sha256 "SHA_DARWIN_AMD64_PLACEHOLDER"
+              end
+              on_arm do
+                url "https://github.com/noetic-sys/index/releases/download/vVERSION_PLACEHOLDER/idx-darwin-arm64.tar.gz"
+                sha256 "SHA_DARWIN_ARM64_PLACEHOLDER"
+              end
+            end
+
+            on_linux do
+              on_intel do
+                url "https://github.com/noetic-sys/index/releases/download/vVERSION_PLACEHOLDER/idx-linux-amd64.tar.gz"
+                sha256 "SHA_LINUX_AMD64_PLACEHOLDER"
+              end
+              on_arm do
+                url "https://github.com/noetic-sys/index/releases/download/vVERSION_PLACEHOLDER/idx-linux-arm64.tar.gz"
+                sha256 "SHA_LINUX_ARM64_PLACEHOLDER"
+              end
+            end
+
+            def install
+              bin.install Dir["idx-*"].first => "idx"
+            end
+
+            test do
+              system "#{bin}/idx", "--version"
+            end
+          end
+          FORMULA
+
+          # Replace placeholders
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" idx.rb
+          sed -i "s/SHA_DARWIN_AMD64_PLACEHOLDER/${SHA_DARWIN_AMD64}/g" idx.rb
+          sed -i "s/SHA_DARWIN_ARM64_PLACEHOLDER/${SHA_DARWIN_ARM64}/g" idx.rb
+          sed -i "s/SHA_LINUX_AMD64_PLACEHOLDER/${SHA_LINUX_AMD64}/g" idx.rb
+          sed -i "s/SHA_LINUX_ARM64_PLACEHOLDER/${SHA_LINUX_ARM64}/g" idx.rb
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' idx.rb
+
+          cat idx.rb
+
       - name: Update Homebrew Tap
-        uses: Justintime50/homebrew-releaser@v1
-        with:
-          homebrew_owner: noetic-sys
-          homebrew_tap: homebrew-tap
-          formula_folder: Formula
-          formula_name: idx
-          github_token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          install: bin.install Dir["idx-*"].first => "idx"
-          test: system "#{bin}/idx", "--version"
-          target_darwin_amd64: true
-          target_darwin_arm64: true
-          target_linux_amd64: true
-          target_linux_arm64: true
+        run: |
+          git clone https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/noetic-sys/homebrew-tap.git tap
+          cp idx.rb tap/Formula/idx.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/idx.rb
+          git commit -m "Update idx to ${GITHUB_REF#refs/tags/}"
+          git push
