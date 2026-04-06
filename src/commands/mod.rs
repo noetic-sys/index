@@ -2,6 +2,7 @@
 
 mod clean;
 mod config;
+mod explain;
 mod index;
 mod init;
 mod list;
@@ -18,6 +19,7 @@ mod watch;
 
 pub use clean::CleanCmd;
 pub use config::ConfigCmd;
+pub use explain::ExplainCmd;
 pub use index::IndexCmd;
 pub use init::InitCmd;
 pub use list::ListCmd;
