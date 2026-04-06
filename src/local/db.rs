@@ -133,6 +133,27 @@ impl LocalDb {
             .execute(&self.pool)
             .await?;
 
+        // Project-package associations for ref-counted clean
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS project_packages (
+                project_id  TEXT NOT NULL,
+                registry    TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                version     TEXT NOT NULL,
+                PRIMARY KEY (project_id, registry, name, version)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_pp_pkg ON project_packages(registry, name, version)",
+        )
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 
@@ -561,6 +582,77 @@ impl LocalDb {
             .await?;
 
         Ok(namespaces)
+    }
+
+    // ==================== Project-Package Associations ====================
+
+    /// Record that a project uses a specific package version.
+    pub async fn register_project_package(
+        &self,
+        project_id: &str,
+        registry: &str,
+        name: &str,
+        version: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT OR IGNORE INTO project_packages (project_id, registry, name, version)
+            VALUES (?, ?, ?, ?)
+            "#,
+        )
+        .bind(project_id)
+        .bind(registry)
+        .bind(name)
+        .bind(version)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// List all package versions registered by a project.
+    pub async fn list_project_packages(
+        &self,
+        project_id: &str,
+    ) -> Result<Vec<(String, String, String)>> {
+        let rows: Vec<(String, String, String)> = sqlx::query_as(
+            "SELECT registry, name, version FROM project_packages WHERE project_id = ?",
+        )
+        .bind(project_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows)
+    }
+
+    /// Remove all project-package associations for a project.
+    pub async fn unregister_project(&self, project_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM project_packages WHERE project_id = ?")
+            .bind(project_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Count how many distinct projects reference a package version.
+    pub async fn version_ref_count(
+        &self,
+        registry: &str,
+        name: &str,
+        version: &str,
+    ) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT project_id) FROM project_packages \
+             WHERE registry = ? AND name = ? AND version = ?",
+        )
+        .bind(registry)
+        .bind(name)
+        .bind(version)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count)
     }
 
     // ==================== Stats ====================

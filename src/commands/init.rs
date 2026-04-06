@@ -45,13 +45,9 @@ impl InitCmd {
             anyhow::bail!("OpenAI API key not configured. Run: idx config set-key <key>");
         }
 
-        // Find or create .index/ directory
-        let index_dir =
-            local::get_index_dir().unwrap_or_else(|| self.path.join(local::INDEX_DIR_NAME));
-
+        let index_dir = local::get_index_dir();
         if !index_dir.exists() {
-            std::fs::create_dir_all(&index_dir).context("Failed to create .index directory")?;
-            println!("Created {}", index_dir.display());
+            std::fs::create_dir_all(&index_dir).context("Failed to create index directory")?;
         }
 
         println!("Index: {}", index_dir.display());
@@ -76,6 +72,9 @@ impl InitCmd {
         }
 
         let indexer = Arc::new(LocalIndexer::new(&index_dir).await?);
+        let project_id = Arc::new(local::project_id(
+            &self.path.canonicalize().unwrap_or_else(|_| self.path.clone()),
+        ));
 
         let indexed = Arc::new(AtomicUsize::new(0));
         let skipped = Arc::new(AtomicUsize::new(0));
@@ -89,6 +88,7 @@ impl InitCmd {
 
         stream::iter(deps.into_iter().map(|dep| {
             let indexer = Arc::clone(&indexer);
+            let project_id = Arc::clone(&project_id);
             let indexed = Arc::clone(&indexed);
             let skipped = Arc::clone(&skipped);
             let failed = Arc::clone(&failed);
@@ -111,6 +111,14 @@ impl InitCmd {
                     .await
                 {
                     Ok(result) => {
+                        let _ = indexer
+                            .register_project_package(
+                                &project_id,
+                                &dep.registry,
+                                &dep.name,
+                                &dep.version,
+                            )
+                            .await;
                         if result.chunks_indexed > 0 {
                             indexed.fetch_add(1, Ordering::Relaxed);
                             if verbose {

@@ -336,6 +336,19 @@ impl LocalIndexer {
         Ok(all_embeddings)
     }
 
+    /// Record that a project references a package version (for ref-counted clean).
+    pub async fn register_project_package(
+        &self,
+        project_id: &str,
+        registry: &str,
+        name: &str,
+        version: &str,
+    ) -> Result<()> {
+        self.db
+            .register_project_package(project_id, registry, name, version)
+            .await
+    }
+
     /// Get the underlying database.
     pub fn db(&self) -> &LocalDb {
         &self.db

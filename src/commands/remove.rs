@@ -17,8 +17,7 @@ pub struct RemoveCmd {
 
 impl RemoveCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir =
-            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
+        let index_dir = local::get_index_dir();
 
         let indexer = LocalIndexer::new(&index_dir).await?;
 

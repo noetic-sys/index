@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::types::Registry;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 use futures::stream::{self, StreamExt};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
@@ -32,8 +32,7 @@ pub struct WatchCmd {
 
 impl WatchCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir =
-            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
+        let index_dir = local::get_index_dir();
 
         println!("Watching {} for manifest changes...", self.path.display());
         println!("Press Ctrl+C to stop.\n");
@@ -116,6 +115,9 @@ impl WatchCmd {
 
     async fn sync_index(&self, index_dir: &std::path::Path) -> Result<()> {
         let indexer = Arc::new(LocalIndexer::new(index_dir).await?);
+        let project_id = Arc::new(local::project_id(
+            &self.path.canonicalize().unwrap_or_else(|_| self.path.clone()),
+        ));
 
         // Get indexed versions
         let indexed_versions = indexer.db().list_versions().await?;
@@ -162,6 +164,7 @@ impl WatchCmd {
 
         stream::iter(to_index.into_iter().map(|dep| {
             let indexer = Arc::clone(&indexer);
+            let project_id = Arc::clone(&project_id);
             let indexed = Arc::clone(&indexed);
             let failed = Arc::clone(&failed);
             async move {
@@ -177,6 +180,14 @@ impl WatchCmd {
                     .await
                 {
                     Ok(result) => {
+                        let _ = indexer
+                            .register_project_package(
+                                &project_id,
+                                &dep.registry,
+                                &dep.name,
+                                &dep.version,
+                            )
+                            .await;
                         println!(
                             "  {}@{} -> {} chunks",
                             dep.name, dep.version, result.chunks_indexed

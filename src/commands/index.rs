@@ -16,8 +16,7 @@ pub struct IndexCmd {
 
 impl IndexCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir =
-            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
+        let index_dir = local::get_index_dir();
 
         let (registry_str, name, version) = parse_package_spec(&self.package)?;
 
@@ -26,8 +25,15 @@ impl IndexCmd {
 
         println!("Indexing {}:{}@{}...", registry_str, name, version);
 
+        let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let project_id = local::project_id(&cwd);
+
         let indexer = LocalIndexer::new(&index_dir).await?;
         let result = indexer.index_package(registry, &name, &version).await?;
+
+        indexer
+            .register_project_package(&project_id, &registry_str, &name, &version)
+            .await?;
 
         if result.chunks_indexed > 0 {
             println!(

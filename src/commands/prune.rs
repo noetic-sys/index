@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 
 use crate::local::{self, LocalIndexer};
@@ -29,8 +29,7 @@ pub struct PruneCmd {
 
 impl PruneCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir =
-            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
+        let index_dir = local::get_index_dir();
 
         let indexer = LocalIndexer::new(&index_dir).await?;
 

@@ -1,6 +1,6 @@
 //! List command - list all indexed packages.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 
 use crate::local::models::VersionStatus;
@@ -23,8 +23,7 @@ pub struct ListCmd {
 
 impl ListCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir =
-            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
+        let index_dir = local::get_index_dir();
 
         let indexer = LocalIndexer::new(&index_dir).await?;
 
@@ -42,11 +41,8 @@ impl ListCmd {
         };
 
         if versions.is_empty() {
-            if self.status.is_some() {
-                println!(
-                    "No packages with status '{}'.",
-                    self.status.as_ref().unwrap()
-                );
+            if let Some(status) = &self.status {
+                println!("No packages with status '{}'.", status);
             } else {
                 println!("No packages indexed yet. Run `idx init` to index your dependencies.");
             }

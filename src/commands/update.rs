@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::local::models::VersionStatus;
 use crate::types::Registry;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 use futures::stream::{self, StreamExt};
 
@@ -36,10 +36,11 @@ pub struct UpdateCmd {
 
 impl UpdateCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir =
-            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
-
+        let index_dir = local::get_index_dir();
         let indexer = Arc::new(LocalIndexer::new(&index_dir).await?);
+        let project_id = Arc::new(local::project_id(
+            &self.path.canonicalize().unwrap_or_else(|_| self.path.clone()),
+        ));
 
         // Get indexed versions: (registry, name) -> version (only for indexed status)
         let indexed_versions = indexer.db().list_versions().await?;
@@ -125,6 +126,7 @@ impl UpdateCmd {
 
         stream::iter(to_update.into_iter().map(|dep| {
             let indexer = Arc::clone(&indexer);
+            let project_id = Arc::clone(&project_id);
             let indexed = Arc::clone(&indexed);
             let failed = Arc::clone(&failed);
             let completed = Arc::clone(&completed);
@@ -146,6 +148,14 @@ impl UpdateCmd {
                     .await
                 {
                     Ok(result) => {
+                        let _ = indexer
+                            .register_project_package(
+                                &project_id,
+                                &dep.registry,
+                                &dep.name,
+                                &dep.version,
+                            )
+                            .await;
                         indexed.fetch_add(1, Ordering::Relaxed);
                         if verbose {
                             eprintln!(

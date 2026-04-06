@@ -1,8 +1,12 @@
 //! Local mode - self-contained indexing without a server.
 //!
-//! Stores indices in `.index/` directory within the project:
-//! - `db.sqlite` - package metadata and vector embeddings
+//! Stores indices in the global index directory:
+//! - `db.sqlite` - package metadata and chunk data
 //! - `blobs/` - code chunks (content-addressed)
+//! - `vectors/` - LanceDB vector tables
+//!
+//! Default location: `~/Library/Application Support/idx` (macOS), `~/.local/share/idx` (Linux)
+//! Override with the `IDX_DIR` environment variable.
 
 #![allow(dead_code)]
 
@@ -21,34 +25,30 @@ pub use search::LocalSearch;
 
 use std::path::{Path, PathBuf};
 
-/// The name of the index directory.
-pub const INDEX_DIR_NAME: &str = ".index";
+use sha2::{Digest, Sha256};
 
-/// Find the `.index/` directory by walking up from the given path.
-pub fn find_index_root(start: &Path) -> Option<PathBuf> {
-    let mut current = start.to_path_buf();
-    loop {
-        let index_dir = current.join(INDEX_DIR_NAME);
-        if index_dir.is_dir() {
-            return Some(index_dir);
-        }
-        if !current.pop() {
-            return None;
-        }
+/// Get the global index directory.
+///
+/// Resolution order:
+/// 1. `$IDX_DIR` environment variable (for CI / testing isolation)
+/// 2. Platform data dir: `~/Library/Application Support/idx` (macOS), `~/.local/share/idx` (Linux)
+pub fn get_index_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("IDX_DIR") {
+        return PathBuf::from(dir);
     }
+
+    dirs::data_dir()
+        .expect("Could not determine data directory. Set IDX_DIR to override.")
+        .join("idx")
 }
 
-/// Check if we're in local mode (`.index/` exists in cwd or parents).
-pub fn is_local_mode() -> bool {
-    std::env::current_dir()
-        .ok()
-        .and_then(|cwd| find_index_root(&cwd))
-        .is_some()
-}
-
-/// Get the index directory for the current working directory.
-pub fn get_index_dir() -> Option<PathBuf> {
-    std::env::current_dir()
-        .ok()
-        .and_then(|cwd| find_index_root(&cwd))
+/// Derive a stable project ID from the canonical project root path.
+///
+/// Uses the first 16 bytes of SHA-256(canonical_path) — 32 hex chars, collision-resistant enough.
+pub fn project_id(project_root: &Path) -> String {
+    let canonical = project_root
+        .canonicalize()
+        .unwrap_or_else(|_| project_root.to_path_buf());
+    let hash = Sha256::digest(canonical.to_string_lossy().as_bytes());
+    hex::encode(&hash[..16])
 }

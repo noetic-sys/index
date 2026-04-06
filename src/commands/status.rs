@@ -23,13 +23,6 @@ pub struct StatusCmd {
 impl StatusCmd {
     pub async fn run(&self) -> Result<()> {
         let index_dir = local::get_index_dir();
-
-        if index_dir.is_none() {
-            println!("No .index directory found. Run `idx init` first.");
-            return Ok(());
-        }
-
-        let index_dir = index_dir.unwrap();
         let indexer = LocalIndexer::new(&index_dir).await?;
 
         // Get indexed versions

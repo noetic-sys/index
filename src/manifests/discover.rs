@@ -43,8 +43,6 @@ const SKIP_DIRS: &[&str] = &[
     // IDE
     ".idea",
     ".vscode",
-    // Our own index
-    ".index",
 ];
 
 /// Manifest files we look for.
