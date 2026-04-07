@@ -142,7 +142,7 @@ impl SearchCmd {
                     }
                     println!("   ---");
                 }
-            } else {
+            } else if r.signature.is_none() {
                 let snippet: String = r.snippet.lines().take(3).collect::<Vec<_>>().join("\n   ");
                 println!("   {}", snippet);
             }

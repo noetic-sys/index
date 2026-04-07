@@ -141,8 +141,7 @@ impl LocalMcpServer {
                             }
                             output.push_str("   ```\n");
                         }
-                    } else {
-                        // Show snippet
+                    } else if r.signature.is_none() {
                         let snippet: String = r
                             .snippet
                             .lines()
