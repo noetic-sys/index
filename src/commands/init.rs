@@ -1,6 +1,5 @@
 //! Init command - index all dependencies from project manifests.
 
-use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -13,10 +12,7 @@ use clap::Args;
 use futures::stream::{self, StreamExt};
 
 use crate::local::{self, LocalIndexer};
-use crate::manifests::{
-    Dependency, discover_manifest_dirs, parse_cargo_deps, parse_go_deps, parse_maven_deps,
-    parse_npm_deps, parse_python_deps,
-};
+use crate::manifests::{Dependency, collect_manifest_deps, discover_manifest_dirs};
 
 #[derive(Args)]
 pub struct InitCmd {
@@ -178,16 +174,8 @@ impl InitCmd {
     }
 
     fn collect_dependencies(&self) -> Result<Vec<Dependency>> {
-        let mut all_deps = Vec::new();
-
-        // Discover all manifest directories (handles monorepos)
+        // Show discovered roots if more than one (monorepo UX)
         let manifest_dirs = discover_manifest_dirs(&self.path)?;
-
-        if manifest_dirs.is_empty() {
-            return Ok(vec![]);
-        }
-
-        // Show discovered roots if more than one
         if manifest_dirs.len() > 1 {
             println!("Found {} project roots:", manifest_dirs.len());
             for dir in &manifest_dirs {
@@ -201,37 +189,6 @@ impl InitCmd {
             }
         }
 
-        // Parse manifests from each discovered directory
-        for dir in &manifest_dirs {
-            if let Ok(deps) = parse_npm_deps(dir) {
-                all_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_cargo_deps(dir) {
-                all_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_python_deps(dir) {
-                all_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_maven_deps(dir) {
-                all_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_go_deps(dir) {
-                all_deps.extend(deps);
-            }
-        }
-
-        // Dedupe by (registry, name) - keep first occurrence
-        let mut seen: HashMap<(String, String), usize> = HashMap::new();
-        for (i, dep) in all_deps.iter().enumerate() {
-            seen.entry((dep.registry.clone(), dep.name.clone()))
-                .or_insert(i);
-        }
-
-        let mut indices: Vec<_> = seen.into_values().collect();
-        indices.sort();
-
-        let deps: Vec<_> = indices.into_iter().map(|i| all_deps[i].clone()).collect();
-
-        Ok(deps)
+        collect_manifest_deps(&self.path)
     }
 }

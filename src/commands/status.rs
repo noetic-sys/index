@@ -4,14 +4,12 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use anyhow::Result;
+
 use clap::Args;
 
 use crate::local::models::VersionStatus;
 use crate::local::{self, LocalIndexer};
-use crate::manifests::{
-    discover_manifest_dirs, parse_cargo_deps, parse_go_deps, parse_maven_deps, parse_npm_deps,
-    parse_python_deps,
-};
+use crate::manifests::collect_manifest_deps;
 
 #[derive(Args)]
 pub struct StatusCmd {
@@ -43,28 +41,7 @@ impl StatusCmd {
             .filter(|v| v.status() == VersionStatus::Skipped)
             .count();
 
-        // Get manifest dependencies from all discovered roots
-        let manifest_dirs = discover_manifest_dirs(&self.path)?;
-        let mut manifest_deps = Vec::new();
-
-        for dir in &manifest_dirs {
-            if let Ok(deps) = parse_npm_deps(dir) {
-                manifest_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_cargo_deps(dir) {
-                manifest_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_python_deps(dir) {
-                manifest_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_maven_deps(dir) {
-                manifest_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_go_deps(dir) {
-                manifest_deps.extend(deps);
-            }
-        }
-
+        let manifest_deps = collect_manifest_deps(&self.path)?;
         let manifest_set: HashSet<(String, String, String)> = manifest_deps
             .iter()
             .map(|d| (d.registry.clone(), d.name.clone(), d.version.clone()))
