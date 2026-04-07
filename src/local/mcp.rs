@@ -16,11 +16,14 @@ use serde::Deserialize;
 
 use super::indexer::LocalIndexer;
 use super::search::LocalSearch;
+use crate::local;
 
 /// Local MCP Server for Code Intelligence.
 pub struct LocalMcpServer {
     search: LocalSearch,
     indexer: Arc<LocalIndexer>,
+    /// Project ID derived from cwd at startup — scopes search to this project's indexed deps.
+    project_id: String,
     tool_router: ToolRouter<LocalMcpServer>,
 }
 
@@ -72,9 +75,13 @@ impl LocalMcpServer {
     pub async fn new(index_dir: &std::path::Path) -> Result<Self> {
         let search = LocalSearch::new(index_dir).await?;
         let indexer = Arc::new(LocalIndexer::new(index_dir).await?);
+        let project_id = std::env::current_dir()
+            .map(|cwd| local::project_id(&cwd))
+            .unwrap_or_default();
         Ok(Self {
             search,
             indexer,
+            project_id,
             tool_router: Self::tool_router(),
         })
     }
@@ -93,6 +100,7 @@ impl LocalMcpServer {
                 input.package.as_deref(),
                 input.registry.as_deref(),
                 input.version.as_deref(),
+                Some(&self.project_id),
                 input.limit as usize,
             )
             .await;
@@ -157,37 +165,64 @@ impl LocalMcpServer {
         }
     }
 
-    #[tool(description = "List all indexed packages in the local index.")]
+    #[tool(description = "List packages indexed for this project.")]
     async fn list_packages(
         &self,
         Parameters(_input): Parameters<ListPackagesInput>,
     ) -> Result<CallToolResult, McpError> {
-        match self.search.list_versions().await {
-            Ok(versions) => {
-                if versions.is_empty() {
-                    return Ok(CallToolResult::success(vec![Content::text(
-                        "No packages indexed yet. Run `idx init` to index your project's dependencies.",
-                    )]));
-                }
-
-                let mut output = String::from("Indexed packages:\n\n");
-                for ver in versions {
-                    output.push_str(&format!(
-                        "- {}:{}@{}\n",
-                        ver.registry, ver.name, ver.version
-                    ));
-                    if let Some(desc) = ver.description {
-                        output.push_str(&format!("  {}\n", desc));
-                    }
-                }
-
-                Ok(CallToolResult::success(vec![Content::text(output)]))
+        let versions = match self.search.list_versions().await {
+            Ok(v) => v,
+            Err(e) => {
+                return Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Failed to list packages: {}",
+                    e
+                ))]));
             }
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Failed to list packages: {}",
-                e
-            ))])),
+        };
+
+        // Scope to this project's registered packages
+        let project_deps = match self
+            .search
+            .db()
+            .list_project_packages(&self.project_id)
+            .await
+        {
+            Ok(d) => d,
+            Err(e) => {
+                return Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Failed to load project packages: {}",
+                    e
+                ))]));
+            }
+        };
+
+        let versions: Vec<_> = versions
+            .into_iter()
+            .filter(|v| {
+                project_deps
+                    .iter()
+                    .any(|(r, n, _)| r == &v.registry && n == &v.name)
+            })
+            .collect();
+
+        if versions.is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text(
+                "No packages indexed yet. Run `idx init` to index your project's dependencies.",
+            )]));
         }
+
+        let mut output = String::from("Indexed packages:\n\n");
+        for ver in versions {
+            output.push_str(&format!(
+                "- {}:{}@{}\n",
+                ver.registry, ver.name, ver.version
+            ));
+            if let Some(desc) = ver.description {
+                output.push_str(&format!("  {}\n", desc));
+            }
+        }
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
     #[tool(

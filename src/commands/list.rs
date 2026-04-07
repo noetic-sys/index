@@ -19,13 +19,23 @@ pub struct ListCmd {
     /// Show only package names (no versions)
     #[arg(long)]
     pub names_only: bool,
+
+    /// List the entire global index instead of scoping to this project's dependencies
+    #[arg(long)]
+    pub global: bool,
 }
 
 impl ListCmd {
     pub async fn run(&self) -> Result<()> {
         let index_dir = local::get_index_dir();
-
         let indexer = LocalIndexer::new(&index_dir).await?;
+
+        let project_id = if self.global {
+            None
+        } else {
+            let cwd = std::env::current_dir()?;
+            Some(local::project_id(&cwd))
+        };
 
         // Get versions (optionally filtered by status)
         let versions = if let Some(ref status_str) = self.status {
@@ -38,6 +48,26 @@ impl ListCmd {
             indexer.db().list_versions_by_status(status).await?
         } else {
             indexer.db().list_versions().await?
+        };
+
+        // Scope to this project's registered packages unless --global
+        let versions = if let Some(ref pid) = project_id {
+            let project_deps = indexer.db().list_project_packages(pid).await?;
+            if project_deps.is_empty() {
+                anyhow::bail!(
+                    "No packages indexed for this project. Run `idx init` first, or use --global."
+                );
+            }
+            versions
+                .into_iter()
+                .filter(|v| {
+                    project_deps
+                        .iter()
+                        .any(|(r, n, _)| r == &v.registry && n == &v.name)
+                })
+                .collect()
+        } else {
+            versions
         };
 
         if versions.is_empty() {

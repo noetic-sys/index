@@ -62,4 +62,3 @@ pub fn collect_manifest_deps(path: &std::path::Path) -> anyhow::Result<Vec<Depen
 
     Ok(indices.into_iter().map(|i| all_deps[i].clone()).collect())
 }
-

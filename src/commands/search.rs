@@ -29,14 +29,36 @@ pub struct SearchCmd {
     /// Max results
     #[arg(short, long, default_value = "10")]
     pub limit: u32,
+
+    /// Search the entire global index instead of scoping to this project's dependencies
+    #[arg(long)]
+    pub global: bool,
 }
 
 impl SearchCmd {
     pub async fn run(&self) -> Result<()> {
         let index_dir = local::get_index_dir();
 
+        let project_id = if self.global {
+            None
+        } else {
+            let cwd = std::env::current_dir()?;
+            let id = local::project_id(&cwd);
+            Some(id)
+        };
+
         let start = std::time::Instant::now();
         let search = LocalSearch::new(&index_dir).await?;
+
+        // Verify the project has been initialized if scoping
+        if let Some(ref pid) = project_id {
+            let deps = search.db().list_project_packages(pid).await?;
+            if deps.is_empty() {
+                anyhow::bail!(
+                    "No packages indexed for this project. Run `idx init` first, or use --global."
+                );
+            }
+        }
 
         let results = search
             .search(
@@ -44,6 +66,7 @@ impl SearchCmd {
                 self.package.as_deref(),
                 self.registry.as_deref(),
                 self.version.as_deref(),
+                project_id.as_deref(),
                 self.limit as usize,
             )
             .await?;
