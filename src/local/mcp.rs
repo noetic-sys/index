@@ -17,6 +17,21 @@ use serde::Deserialize;
 use super::indexer::LocalIndexer;
 use super::search::LocalSearch;
 use crate::local;
+use crate::types::ContentKind;
+
+// Provide JsonSchema for ContentKind so it can appear in MCP tool inputs.
+impl schemars::JsonSchema for ContentKind {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("ContentKind")
+    }
+    fn json_schema(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "string",
+            "enum": ["code", "example", "documentation"],
+            "description": "Content kind filter: code, example, or documentation"
+        })
+    }
+}
 
 /// Local MCP Server for Code Intelligence.
 pub struct LocalMcpServer {
@@ -40,6 +55,9 @@ pub struct SearchCodeInput {
     /// Filter to specific version (or "latest")
     #[serde(default)]
     pub version: Option<String>,
+    /// Filter by content kind: code, example, documentation
+    #[serde(default)]
+    pub kinds: Vec<ContentKind>,
     /// Include full code in results (not just snippets)
     #[serde(default)]
     pub include_code: bool,
@@ -106,7 +124,10 @@ impl LocalMcpServer {
             .await;
 
         match results {
-            Ok(results) => {
+            Ok(mut results) => {
+                if !input.kinds.is_empty() {
+                    results.retain(|r| input.kinds.iter().any(|k| k.matches(&r.chunk_type)));
+                }
                 if results.is_empty() {
                     return Ok(CallToolResult::success(vec![Content::text(
                         "No results found. Try a different query or make sure dependencies are indexed.",

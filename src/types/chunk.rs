@@ -78,6 +78,33 @@ pub struct IndexedChunk {
     pub code: String,
 }
 
+/// Coarse content category for filtering search results.
+///
+/// Groups the granular [`ChunkType`] values into three user-facing buckets.
+#[derive(Debug, Clone, PartialEq, Eq, clap::ValueEnum, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ContentKind {
+    /// Functions, methods, classes, interfaces, types, constants, modules
+    Code,
+    /// Usage examples
+    Example,
+    /// READMEs, changelogs, and other documentation
+    Documentation,
+}
+
+impl ContentKind {
+    pub fn matches(&self, chunk_type: &str) -> bool {
+        match self {
+            ContentKind::Code => matches!(
+                chunk_type,
+                "function" | "method" | "class" | "interface" | "type" | "constant" | "module"
+            ),
+            ContentKind::Example => chunk_type == "example",
+            ContentKind::Documentation => chunk_type == "documentation",
+        }
+    }
+}
+
 /// The semantic type of a code chunk.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

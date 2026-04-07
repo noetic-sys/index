@@ -4,31 +4,7 @@ use anyhow::Result;
 use clap::Args;
 
 use crate::local::{self, LocalSearch};
-
-/// High-level content category for filtering search results.
-#[derive(Debug, Clone, PartialEq, clap::ValueEnum)]
-pub enum ContentKind {
-    /// Functions, methods, classes, interfaces, types, constants, modules
-    Code,
-    /// Usage examples
-    Example,
-    /// READMEs, changelogs, and other documentation
-    Documentation,
-}
-
-impl ContentKind {
-    /// Returns true if the given chunk_type string belongs to this kind.
-    fn matches(&self, chunk_type: &str) -> bool {
-        match self {
-            ContentKind::Code => matches!(
-                chunk_type,
-                "function" | "method" | "class" | "interface" | "type" | "constant" | "module"
-            ),
-            ContentKind::Example => chunk_type == "example",
-            ContentKind::Documentation => chunk_type == "documentation",
-        }
-    }
-}
+use crate::types::ContentKind;
 
 #[derive(Args)]
 pub struct SearchCmd {
