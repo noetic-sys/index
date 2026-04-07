@@ -53,6 +53,8 @@ impl RustParser {
                 if let Some(chunk) = self.extract_function(node, source, file_path) {
                     chunks.push(chunk);
                 }
+                // No recursion needed — function bodies don't contain top-level items
+                return;
             }
             "struct_item" => {
                 if let Some(chunk) = self.extract_struct(node, source, file_path) {
@@ -70,8 +72,9 @@ impl RustParser {
                 }
             }
             "impl_item" => {
-                // Extract methods from impl block
+                // extract_impl_methods handles all function_item children — don't recurse further
                 self.extract_impl_methods(node, source, file_path, chunks);
+                return;
             }
             _ => {}
         }
@@ -430,5 +433,68 @@ impl Foo {
 
         let helper = chunks.iter().find(|c| c.name == "private_helper").unwrap();
         assert_eq!(helper.visibility, Visibility::Private);
+    }
+
+    /// Methods inside impl blocks must not be double-indexed as both Function and Method.
+    #[test]
+    fn test_no_duplicate_impl_methods() {
+        let parser = RustParser::new().unwrap();
+        let source = r#"
+pub struct Counter {
+    value: u32,
+}
+
+impl Counter {
+    pub fn new() -> Self {
+        Counter { value: 0 }
+    }
+
+    pub fn increment(&mut self) {
+        self.value += 1;
+    }
+}
+"#;
+        let chunks = parser.parse(source, "test.rs").unwrap();
+
+        // Each method should appear exactly once
+        let new_chunks: Vec<_> = chunks.iter().filter(|c| c.name == "new").collect();
+        assert_eq!(new_chunks.len(), 1, "`new` indexed {} times", new_chunks.len());
+        assert_eq!(new_chunks[0].chunk_type, ChunkType::Method);
+
+        let inc_chunks: Vec<_> = chunks.iter().filter(|c| c.name == "increment").collect();
+        assert_eq!(inc_chunks.len(), 1, "`increment` indexed {} times", inc_chunks.len());
+        assert_eq!(inc_chunks[0].chunk_type, ChunkType::Method);
+
+        // Total: 1 struct (Type) + 2 methods
+        assert_eq!(chunks.len(), 3);
+    }
+
+    /// Free functions (not inside impl) must be indexed as Function, not Method.
+    #[test]
+    fn test_free_fn_not_duplicated() {
+        let parser = RustParser::new().unwrap();
+        let source = r#"
+pub fn standalone() -> u32 {
+    42
+}
+
+pub struct Foo;
+
+impl Foo {
+    pub fn method(&self) {}
+}
+"#;
+        let chunks = parser.parse(source, "test.rs").unwrap();
+
+        let standalone: Vec<_> = chunks.iter().filter(|c| c.name == "standalone").collect();
+        assert_eq!(standalone.len(), 1, "`standalone` indexed {} times", standalone.len());
+        assert_eq!(standalone[0].chunk_type, ChunkType::Function);
+
+        let method: Vec<_> = chunks.iter().filter(|c| c.name == "method").collect();
+        assert_eq!(method.len(), 1, "`method` indexed {} times", method.len());
+        assert_eq!(method[0].chunk_type, ChunkType::Method);
+
+        // Total: 1 free fn + 1 struct + 1 method
+        assert_eq!(chunks.len(), 3);
     }
 }
