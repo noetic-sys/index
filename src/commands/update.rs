@@ -39,7 +39,10 @@ impl UpdateCmd {
         let index_dir = local::get_index_dir();
         let indexer = Arc::new(LocalIndexer::new(&index_dir).await?);
         let project_id = Arc::new(local::project_id(
-            &self.path.canonicalize().unwrap_or_else(|_| self.path.clone()),
+            &self
+                .path
+                .canonicalize()
+                .unwrap_or_else(|_| self.path.clone()),
         ));
 
         // Get indexed versions: (registry, name) -> version (only for indexed status)

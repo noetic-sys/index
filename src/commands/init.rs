@@ -73,7 +73,10 @@ impl InitCmd {
 
         let indexer = Arc::new(LocalIndexer::new(&index_dir).await?);
         let project_id = Arc::new(local::project_id(
-            &self.path.canonicalize().unwrap_or_else(|_| self.path.clone()),
+            &self
+                .path
+                .canonicalize()
+                .unwrap_or_else(|_| self.path.clone()),
         ));
 
         let indexed = Arc::new(AtomicUsize::new(0));

@@ -116,7 +116,10 @@ impl WatchCmd {
     async fn sync_index(&self, index_dir: &std::path::Path) -> Result<()> {
         let indexer = Arc::new(LocalIndexer::new(index_dir).await?);
         let project_id = Arc::new(local::project_id(
-            &self.path.canonicalize().unwrap_or_else(|_| self.path.clone()),
+            &self
+                .path
+                .canonicalize()
+                .unwrap_or_else(|_| self.path.clone()),
         ));
 
         // Get indexed versions

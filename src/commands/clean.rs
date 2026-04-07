@@ -23,7 +23,10 @@ impl CleanCmd {
     pub async fn run(&self) -> Result<()> {
         let index_dir = local::get_index_dir();
         let project_id = local::project_id(
-            &self.path.canonicalize().unwrap_or_else(|_| self.path.clone()),
+            &self
+                .path
+                .canonicalize()
+                .unwrap_or_else(|_| self.path.clone()),
         );
 
         let indexer = LocalIndexer::new(&index_dir).await?;
@@ -49,10 +52,7 @@ impl CleanCmd {
             }
         }
 
-        println!(
-            "This project has {} registered packages.",
-            packages.len()
-        );
+        println!("This project has {} registered packages.", packages.len());
         if !to_delete.is_empty() {
             println!(
                 "  {} will be removed from the global store (no other projects use them)",
