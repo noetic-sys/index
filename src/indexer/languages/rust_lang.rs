@@ -458,11 +458,21 @@ impl Counter {
 
         // Each method should appear exactly once
         let new_chunks: Vec<_> = chunks.iter().filter(|c| c.name == "new").collect();
-        assert_eq!(new_chunks.len(), 1, "`new` indexed {} times", new_chunks.len());
+        assert_eq!(
+            new_chunks.len(),
+            1,
+            "`new` indexed {} times",
+            new_chunks.len()
+        );
         assert_eq!(new_chunks[0].chunk_type, ChunkType::Method);
 
         let inc_chunks: Vec<_> = chunks.iter().filter(|c| c.name == "increment").collect();
-        assert_eq!(inc_chunks.len(), 1, "`increment` indexed {} times", inc_chunks.len());
+        assert_eq!(
+            inc_chunks.len(),
+            1,
+            "`increment` indexed {} times",
+            inc_chunks.len()
+        );
         assert_eq!(inc_chunks[0].chunk_type, ChunkType::Method);
 
         // Total: 1 struct (Type) + 2 methods
@@ -487,7 +497,12 @@ impl Foo {
         let chunks = parser.parse(source, "test.rs").unwrap();
 
         let standalone: Vec<_> = chunks.iter().filter(|c| c.name == "standalone").collect();
-        assert_eq!(standalone.len(), 1, "`standalone` indexed {} times", standalone.len());
+        assert_eq!(
+            standalone.len(),
+            1,
+            "`standalone` indexed {} times",
+            standalone.len()
+        );
         assert_eq!(standalone[0].chunk_type, ChunkType::Function);
 
         let method: Vec<_> = chunks.iter().filter(|c| c.name == "method").collect();
