@@ -5,6 +5,31 @@ use clap::Args;
 
 use crate::local::{self, LocalSearch};
 
+/// High-level content category for filtering search results.
+#[derive(Debug, Clone, PartialEq, clap::ValueEnum)]
+pub enum ContentKind {
+    /// Functions, methods, classes, interfaces, types, constants, modules
+    Code,
+    /// Usage examples
+    Example,
+    /// READMEs, changelogs, and other documentation
+    Documentation,
+}
+
+impl ContentKind {
+    /// Returns true if the given chunk_type string belongs to this kind.
+    fn matches(&self, chunk_type: &str) -> bool {
+        match self {
+            ContentKind::Code => matches!(
+                chunk_type,
+                "function" | "method" | "class" | "interface" | "type" | "constant" | "module"
+            ),
+            ContentKind::Example => chunk_type == "example",
+            ContentKind::Documentation => chunk_type == "documentation",
+        }
+    }
+}
+
 #[derive(Args)]
 pub struct SearchCmd {
     /// Natural language query
@@ -21,6 +46,10 @@ pub struct SearchCmd {
     /// Filter to registry (npm, crates, pypi)
     #[arg(short, long)]
     pub registry: Option<String>,
+
+    /// Filter by content kind: code, example, documentation (repeatable)
+    #[arg(short, long = "type", value_name = "KIND")]
+    pub kinds: Vec<ContentKind>,
 
     /// Include full code (not just snippets)
     #[arg(short = 'c', long)]
@@ -60,16 +89,29 @@ impl SearchCmd {
             }
         }
 
-        let results = search
+        // Fetch extra results to account for post-filtering by kind
+        let fetch_limit = if self.kinds.is_empty() {
+            self.limit as usize
+        } else {
+            (self.limit as usize * 4).max(40)
+        };
+
+        let mut results = search
             .search(
                 &self.query,
                 self.package.as_deref(),
                 self.registry.as_deref(),
                 self.version.as_deref(),
                 project_id.as_deref(),
-                self.limit as usize,
+                fetch_limit,
             )
             .await?;
+
+        // Apply kind filter
+        if !self.kinds.is_empty() {
+            results.retain(|r| self.kinds.iter().any(|k| k.matches(&r.chunk_type)));
+            results.truncate(self.limit as usize);
+        }
 
         let elapsed = start.elapsed().as_millis();
 
