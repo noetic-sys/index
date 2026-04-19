@@ -1,6 +1,6 @@
 //! Update command - re-index packages with changed versions.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -9,15 +9,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::local::models::VersionStatus;
 use crate::types::Registry;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 use futures::stream::{self, StreamExt};
 
 use crate::local::{self, LocalIndexer};
-use crate::manifests::{
-    Dependency, discover_manifest_dirs, parse_cargo_deps, parse_go_deps, parse_maven_deps,
-    parse_npm_deps, parse_python_deps,
-};
+use crate::manifests::{Dependency, collect_manifest_deps};
 
 #[derive(Args)]
 pub struct UpdateCmd {
@@ -36,10 +33,14 @@ pub struct UpdateCmd {
 
 impl UpdateCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir =
-            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
-
+        let index_dir = local::get_index_dir();
         let indexer = Arc::new(LocalIndexer::new(&index_dir).await?);
+        let project_id = Arc::new(local::project_id(
+            &self
+                .path
+                .canonicalize()
+                .unwrap_or_else(|_| self.path.clone()),
+        ));
 
         // Get indexed versions: (registry, name) -> version (only for indexed status)
         let indexed_versions = indexer.db().list_versions().await?;
@@ -49,61 +50,30 @@ impl UpdateCmd {
             .map(|v| ((v.registry.clone(), v.name.clone()), v.version.clone()))
             .collect();
 
-        // Get manifest dependencies from all discovered roots
-        let manifest_dirs = discover_manifest_dirs(&self.path)?;
-        let mut manifest_deps = Vec::new();
-
-        for dir in &manifest_dirs {
-            if let Ok(deps) = parse_npm_deps(dir) {
-                manifest_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_cargo_deps(dir) {
-                manifest_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_python_deps(dir) {
-                manifest_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_maven_deps(dir) {
-                manifest_deps.extend(deps);
-            }
-            if let Ok(deps) = parse_go_deps(dir) {
-                manifest_deps.extend(deps);
-            }
-        }
+        let manifest_deps = collect_manifest_deps(&self.path)?;
 
         // Find packages that need updating (version changed or new)
         let mut to_update: Vec<Dependency> = Vec::new();
-        let mut seen: HashSet<(String, String)> = HashSet::new();
 
         for dep in manifest_deps {
             let key = (dep.registry.clone(), dep.name.clone());
-
-            // Skip duplicates from multiple manifest roots
-            if seen.contains(&key) {
-                continue;
-            }
-
             match indexed_map.get(&key) {
                 Some(indexed_version) if indexed_version == &dep.version => {
                     // Already indexed at correct version
                 }
                 Some(indexed_version) => {
-                    // Version changed
                     if self.verbose {
                         println!(
                             "  {}@{} -> {} (version changed)",
                             dep.name, indexed_version, dep.version
                         );
                     }
-                    seen.insert(key);
                     to_update.push(dep);
                 }
                 None => {
-                    // New package
                     if self.verbose {
                         println!("  {}@{} (new)", dep.name, dep.version);
                     }
-                    seen.insert(key);
                     to_update.push(dep);
                 }
             }
@@ -125,6 +95,7 @@ impl UpdateCmd {
 
         stream::iter(to_update.into_iter().map(|dep| {
             let indexer = Arc::clone(&indexer);
+            let project_id = Arc::clone(&project_id);
             let indexed = Arc::clone(&indexed);
             let failed = Arc::clone(&failed);
             let completed = Arc::clone(&completed);
@@ -146,6 +117,14 @@ impl UpdateCmd {
                     .await
                 {
                     Ok(result) => {
+                        let _ = indexer
+                            .register_project_package(
+                                &project_id,
+                                &dep.registry,
+                                &dep.name,
+                                &dep.version,
+                            )
+                            .await;
                         indexed.fetch_add(1, Ordering::Relaxed);
                         if verbose {
                             eprintln!(

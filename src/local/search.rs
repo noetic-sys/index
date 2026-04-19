@@ -33,12 +33,16 @@ impl LocalSearch {
     }
 
     /// Search for code chunks.
+    ///
+    /// `project_id` scopes results to packages registered for that project in `project_packages`.
+    /// Pass `None` to search the entire global index.
     pub async fn search(
         &self,
         query: &str,
         package: Option<&str>,
         registry: Option<&str>,
         version: Option<&str>,
+        project_id: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchResult>> {
         // Generate query embedding
@@ -46,12 +50,10 @@ impl LocalSearch {
 
         // Determine which namespaces to search
         let namespaces = if let Some(pkg) = package {
-            // Search specific package
             if let Some(reg) = registry {
                 if let Some(ver) = version {
                     vec![format!("{}/{}/{}", reg, pkg, ver)]
                 } else {
-                    // Search all versions of this package in this registry
                     self.db
                         .get_namespaces()
                         .await?
@@ -60,7 +62,6 @@ impl LocalSearch {
                         .collect()
                 }
             } else {
-                // Search all registries for this package
                 self.db
                     .get_namespaces()
                     .await?
@@ -71,8 +72,27 @@ impl LocalSearch {
                     .collect()
             }
         } else {
-            // Search all namespaces
             self.db.get_namespaces().await?
+        };
+
+        // Scope to project: filter namespaces to only those registered for this project.
+        // Namespace format: "{registry}/{name}/{version}"
+        let namespaces = if let Some(pid) = project_id {
+            let project_deps = self.db.list_project_packages(pid).await?;
+            namespaces
+                .into_iter()
+                .filter(|ns| {
+                    let mut parts = ns.splitn(3, '/');
+                    match (parts.next(), parts.next()) {
+                        (Some(reg), Some(name)) => project_deps
+                            .iter()
+                            .any(|(pr, pn, _)| pr == reg && pn == name),
+                        _ => false,
+                    }
+                })
+                .collect()
+        } else {
+            namespaces
         };
 
         if namespaces.is_empty() {

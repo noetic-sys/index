@@ -1,6 +1,6 @@
 //! Explain command - quick symbol lookup by name.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 
 use crate::local::{self, LocalSearch};
@@ -17,8 +17,7 @@ pub struct ExplainCmd {
 
 impl ExplainCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir =
-            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
+        let index_dir = local::get_index_dir();
 
         let search = LocalSearch::new(&index_dir).await?;
 

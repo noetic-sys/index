@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 
 use crate::local::{self, LocalIndexer};
@@ -12,8 +12,7 @@ pub struct StatsCmd;
 
 impl StatsCmd {
     pub async fn run(&self) -> Result<()> {
-        let index_dir =
-            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
+        let index_dir = local::get_index_dir();
 
         let indexer = LocalIndexer::new(&index_dir).await?;
 

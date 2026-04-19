@@ -1,6 +1,6 @@
 //! MCP command - run as an MCP server.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -21,8 +21,7 @@ impl McpCmd {
             .with(tracing_subscriber::EnvFilter::from_default_env())
             .init();
 
-        let index_dir =
-            local::get_index_dir().context("No .index directory found. Run `idx init` first.")?;
+        let index_dir = local::get_index_dir();
 
         local::mcp::run_local(&index_dir).await
     }

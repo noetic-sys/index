@@ -16,11 +16,29 @@ use serde::Deserialize;
 
 use super::indexer::LocalIndexer;
 use super::search::LocalSearch;
+use crate::local;
+use crate::types::ContentKind;
+
+// Provide JsonSchema for ContentKind so it can appear in MCP tool inputs.
+impl schemars::JsonSchema for ContentKind {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("ContentKind")
+    }
+    fn json_schema(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "string",
+            "enum": ["code", "example", "documentation"],
+            "description": "Content kind filter: code, example, or documentation"
+        })
+    }
+}
 
 /// Local MCP Server for Code Intelligence.
 pub struct LocalMcpServer {
     search: LocalSearch,
     indexer: Arc<LocalIndexer>,
+    /// Project ID derived from cwd at startup — scopes search to this project's indexed deps.
+    project_id: String,
     tool_router: ToolRouter<LocalMcpServer>,
 }
 
@@ -37,6 +55,9 @@ pub struct SearchCodeInput {
     /// Filter to specific version (or "latest")
     #[serde(default)]
     pub version: Option<String>,
+    /// Filter by content kind: code, example, documentation
+    #[serde(default)]
+    pub kinds: Vec<ContentKind>,
     /// Include full code in results (not just snippets)
     #[serde(default)]
     pub include_code: bool,
@@ -72,9 +93,13 @@ impl LocalMcpServer {
     pub async fn new(index_dir: &std::path::Path) -> Result<Self> {
         let search = LocalSearch::new(index_dir).await?;
         let indexer = Arc::new(LocalIndexer::new(index_dir).await?);
+        let project_id = std::env::current_dir()
+            .map(|cwd| local::project_id(&cwd))
+            .unwrap_or_default();
         Ok(Self {
             search,
             indexer,
+            project_id,
             tool_router: Self::tool_router(),
         })
     }
@@ -93,12 +118,16 @@ impl LocalMcpServer {
                 input.package.as_deref(),
                 input.registry.as_deref(),
                 input.version.as_deref(),
+                Some(&self.project_id),
                 input.limit as usize,
             )
             .await;
 
         match results {
-            Ok(results) => {
+            Ok(mut results) => {
+                if !input.kinds.is_empty() {
+                    results.retain(|r| input.kinds.iter().any(|k| k.matches(&r.chunk_type)));
+                }
                 if results.is_empty() {
                     return Ok(CallToolResult::success(vec![Content::text(
                         "No results found. Try a different query or make sure dependencies are indexed.",
@@ -133,8 +162,7 @@ impl LocalMcpServer {
                             }
                             output.push_str("   ```\n");
                         }
-                    } else {
-                        // Show snippet
+                    } else if r.signature.is_none() {
                         let snippet: String = r
                             .snippet
                             .lines()
@@ -157,37 +185,64 @@ impl LocalMcpServer {
         }
     }
 
-    #[tool(description = "List all indexed packages in the local index.")]
+    #[tool(description = "List packages indexed for this project.")]
     async fn list_packages(
         &self,
         Parameters(_input): Parameters<ListPackagesInput>,
     ) -> Result<CallToolResult, McpError> {
-        match self.search.list_versions().await {
-            Ok(versions) => {
-                if versions.is_empty() {
-                    return Ok(CallToolResult::success(vec![Content::text(
-                        "No packages indexed yet. Run `idx init` to index your project's dependencies.",
-                    )]));
-                }
-
-                let mut output = String::from("Indexed packages:\n\n");
-                for ver in versions {
-                    output.push_str(&format!(
-                        "- {}:{}@{}\n",
-                        ver.registry, ver.name, ver.version
-                    ));
-                    if let Some(desc) = ver.description {
-                        output.push_str(&format!("  {}\n", desc));
-                    }
-                }
-
-                Ok(CallToolResult::success(vec![Content::text(output)]))
+        let versions = match self.search.list_versions().await {
+            Ok(v) => v,
+            Err(e) => {
+                return Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Failed to list packages: {}",
+                    e
+                ))]));
             }
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Failed to list packages: {}",
-                e
-            ))])),
+        };
+
+        // Scope to this project's registered packages
+        let project_deps = match self
+            .search
+            .db()
+            .list_project_packages(&self.project_id)
+            .await
+        {
+            Ok(d) => d,
+            Err(e) => {
+                return Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Failed to load project packages: {}",
+                    e
+                ))]));
+            }
+        };
+
+        let versions: Vec<_> = versions
+            .into_iter()
+            .filter(|v| {
+                project_deps
+                    .iter()
+                    .any(|(r, n, _)| r == &v.registry && n == &v.name)
+            })
+            .collect();
+
+        if versions.is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text(
+                "No packages indexed yet. Run `idx init` to index your project's dependencies.",
+            )]));
         }
+
+        let mut output = String::from("Indexed packages:\n\n");
+        for ver in versions {
+            output.push_str(&format!(
+                "- {}:{}@{}\n",
+                ver.registry, ver.name, ver.version
+            ));
+            if let Some(desc) = ver.description {
+                output.push_str(&format!("  {}\n", desc));
+            }
+        }
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
     #[tool(
