@@ -1,6 +1,6 @@
 //! Explain command - quick symbol lookup by name.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 
 use crate::local::{self, LocalSearch};
