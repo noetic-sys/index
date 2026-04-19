@@ -3,8 +3,8 @@
 use clap::{Parser, Subcommand};
 
 use crate::commands::{
-    CleanCmd, ConfigCmd, IndexCmd, InitCmd, ListCmd, McpCmd, PruneCmd, RemoveCmd, RetryCmd,
-    SearchCmd, SkipCmd, StatsCmd, StatusCmd, UpdateCmd, WatchCmd,
+    CleanCmd, ConfigCmd, ExplainCmd, IndexCmd, InitCmd, ListCmd, McpCmd, PruneCmd, RemoveCmd,
+    RetryCmd, SearchCmd, SkipCmd, StatsCmd, StatusCmd, UpdateCmd, WatchCmd,
 };
 
 #[derive(Parser)]
@@ -32,6 +32,9 @@ pub enum Command {
 
     /// Search for code in indexed packages
     Search(SearchCmd),
+
+    /// Look up a symbol by name
+    Explain(ExplainCmd),
 
     /// List all indexed packages
     List(ListCmd),
@@ -72,6 +75,7 @@ impl Command {
             Command::Watch(cmd) => cmd.run().await,
             Command::Index(cmd) => cmd.run().await,
             Command::Search(cmd) => cmd.run().await,
+            Command::Explain(cmd) => cmd.run().await,
             Command::List(cmd) => cmd.run().await,
             Command::Stats(cmd) => cmd.run().await,
             Command::Status(cmd) => cmd.run().await,
