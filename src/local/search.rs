@@ -138,6 +138,36 @@ impl LocalSearch {
         String::from_utf8(bytes).context("Invalid UTF-8 in stored code")
     }
 
+    /// Find symbols by exact name match.
+    pub async fn find_by_name(
+        &self,
+        name: &str,
+        package: Option<&str>,
+    ) -> Result<Vec<SearchResult>> {
+        let chunks = self.db.find_by_name(name, package).await?;
+
+        Ok(chunks
+            .into_iter()
+            .map(|c| SearchResult {
+                id: c.id,
+                registry: c.registry,
+                package: c.package_name,
+                version: c.version,
+                chunk_type: c.chunk_type,
+                name: c.name,
+                file_path: c.file_path,
+                start_line: c.start_line as u32,
+                end_line: c.end_line as u32,
+                visibility: c.visibility,
+                signature: c.signature,
+                docstring: c.docstring,
+                snippet: c.snippet,
+                storage_key: c.storage_key,
+                score: 1.0, // exact match
+            })
+            .collect())
+    }
+
     /// Generate embedding for a query.
     async fn embed(&self, text: &str) -> Result<Vec<f32>> {
         let api_key = self

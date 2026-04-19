@@ -655,6 +655,54 @@ impl LocalDb {
         Ok(count)
     }
 
+    /// Find chunks by exact symbol name, with optional package filter.
+    pub async fn find_by_name(
+        &self,
+        name: &str,
+        package: Option<&str>,
+    ) -> Result<Vec<ChunkWithPackage>> {
+        let rows = if let Some(pkg) = package {
+            sqlx::query_as::<_, ChunkWithPackage>(
+                r#"
+                SELECT
+                    c.id, c.namespace, c.chunk_type, c.name, c.file_path,
+                    c.start_line, c.end_line, c.visibility, c.signature,
+                    c.docstring, c.snippet, c.storage_key,
+                    p.registry, p.name as package_name, v.version
+                FROM chunks c
+                JOIN versions v ON c.version_id = v.id
+                JOIN packages p ON v.package_id = p.id
+                WHERE c.name = ? AND p.name = ?
+                ORDER BY v.indexed_at DESC
+                "#,
+            )
+            .bind(name)
+            .bind(pkg)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, ChunkWithPackage>(
+                r#"
+                SELECT
+                    c.id, c.namespace, c.chunk_type, c.name, c.file_path,
+                    c.start_line, c.end_line, c.visibility, c.signature,
+                    c.docstring, c.snippet, c.storage_key,
+                    p.registry, p.name as package_name, v.version
+                FROM chunks c
+                JOIN versions v ON c.version_id = v.id
+                JOIN packages p ON v.package_id = p.id
+                WHERE c.name = ?
+                ORDER BY v.indexed_at DESC
+                "#,
+            )
+            .bind(name)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        Ok(rows)
+    }
+
     // ==================== Stats ====================
 
     /// Get index statistics.
