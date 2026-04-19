@@ -247,7 +247,7 @@ impl LocalIndexer {
             "coverage/",
         ];
 
-        const SKIP_PATTERNS: &[&str] = &[".min.js", ".bundle.js", ".map", ".d.ts", ".lock", ".env"];
+        const SKIP_PATTERNS: &[&str] = &[".min.js", ".bundle.js", ".map", ".lock", ".env"];
 
         for dir in SKIP_DIRS {
             if path_lower.contains(dir) {
