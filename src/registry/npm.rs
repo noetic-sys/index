@@ -234,7 +234,10 @@ fn is_indexable_file(path: &str) -> bool {
 
     // Include TypeScript declaration files (.d.ts) — these are the API surface for
     // bundled npm packages (Radix, Sonner, etc.) that ship only compiled JS.
-    if path_lower.ends_with(".d.ts") || path_lower.ends_with(".d.mts") || path_lower.ends_with(".d.cts") {
+    if path_lower.ends_with(".d.ts")
+        || path_lower.ends_with(".d.mts")
+        || path_lower.ends_with(".d.cts")
+    {
         if path_lower.contains("node_modules/") {
             return false;
         }
