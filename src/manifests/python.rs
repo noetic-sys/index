@@ -50,6 +50,40 @@ fn parse_pyproject(path: &Path) -> Result<Vec<Dependency>> {
         }
     }
 
+    // PEP 621: [project.optional-dependencies] (extras)
+    if let Some(extras) = toml
+        .get("project")
+        .and_then(|p| p.get("optional-dependencies"))
+        .and_then(|d| d.as_table())
+    {
+        for (_group, group_deps) in extras {
+            if let Some(arr) = group_deps.as_array() {
+                for dep in arr {
+                    if let Some(s) = dep.as_str()
+                        && let Some(d) = parse_pep508(s)
+                    {
+                        deps.push(d);
+                    }
+                }
+            }
+        }
+    }
+
+    // PEP 735 / uv: [dependency-groups]
+    if let Some(groups) = toml.get("dependency-groups").and_then(|d| d.as_table()) {
+        for (_group, group_deps) in groups {
+            if let Some(arr) = group_deps.as_array() {
+                for dep in arr {
+                    if let Some(s) = dep.as_str()
+                        && let Some(d) = parse_pep508(s)
+                    {
+                        deps.push(d);
+                    }
+                }
+            }
+        }
+    }
+
     // Poetry: [tool.poetry.dependencies]
     if let Some(poetry_deps) = toml
         .get("tool")
@@ -74,6 +108,38 @@ fn parse_pyproject(path: &Path) -> Result<Vec<Dependency>> {
                     name: name.clone(),
                     version: v,
                 });
+            }
+        }
+    }
+
+    // Poetry: [tool.poetry.group.*.dependencies]
+    if let Some(groups) = toml
+        .get("tool")
+        .and_then(|t| t.get("poetry"))
+        .and_then(|p| p.get("group"))
+        .and_then(|g| g.as_table())
+    {
+        for (_group_name, group) in groups {
+            if let Some(group_deps) = group.get("dependencies").and_then(|d| d.as_table()) {
+                for (name, value) in group_deps {
+                    if name == "python" {
+                        continue;
+                    }
+                    let version = match value {
+                        toml::Value::String(v) => Some(v.clone()),
+                        toml::Value::Table(t) => {
+                            t.get("version").and_then(|v| v.as_str()).map(String::from)
+                        }
+                        _ => None,
+                    };
+                    if let Some(v) = version.and_then(|v| clean_version(&v)) {
+                        deps.push(Dependency {
+                            registry: "pypi".to_string(),
+                            name: name.clone(),
+                            version: v,
+                        });
+                    }
+                }
             }
         }
     }
@@ -150,5 +216,68 @@ mod tests {
         let dep = parse_pep508("torch[cuda]>=2.0.0 ; sys_platform == 'linux'").unwrap();
         assert_eq!(dep.name, "torch");
         assert_eq!(dep.version, "2.0.0");
+    }
+
+    #[test]
+    fn test_pep621_optional_dependencies() {
+        let toml_str = r#"
+[project]
+dependencies = ["requests==2.28.0"]
+
+[project.optional-dependencies]
+train = ["torch>=2.3", "transformers>=4.40"]
+dev = ["pytest>=8.2"]
+"#;
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), toml_str).unwrap();
+        let deps = parse_pyproject(tmp.path()).unwrap();
+        let names: Vec<_> = deps.iter().map(|d| d.name.as_str()).collect();
+        assert!(names.contains(&"requests"));
+        assert!(names.contains(&"torch"));
+        assert!(names.contains(&"transformers"));
+        assert!(names.contains(&"pytest"));
+    }
+
+    #[test]
+    fn test_pep735_dependency_groups() {
+        let toml_str = r#"
+[project]
+dependencies = ["numpy>=1.26"]
+
+[dependency-groups]
+train = ["torch>=2.3", "pytorch-lightning>=2.3"]
+dev = ["ruff>=0.11"]
+"#;
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), toml_str).unwrap();
+        let deps = parse_pyproject(tmp.path()).unwrap();
+        let names: Vec<_> = deps.iter().map(|d| d.name.as_str()).collect();
+        assert!(names.contains(&"numpy"));
+        assert!(names.contains(&"torch"));
+        assert!(names.contains(&"pytorch-lightning"));
+        assert!(names.contains(&"ruff"));
+    }
+
+    #[test]
+    fn test_poetry_groups() {
+        let toml_str = r#"
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "^2.28"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2"
+
+[tool.poetry.group.train.dependencies]
+torch = "^2.3"
+"#;
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), toml_str).unwrap();
+        let deps = parse_pyproject(tmp.path()).unwrap();
+        let names: Vec<_> = deps.iter().map(|d| d.name.as_str()).collect();
+        assert!(names.contains(&"requests"));
+        assert!(names.contains(&"pytest"));
+        assert!(names.contains(&"torch"));
+        assert!(!names.contains(&"python"));
     }
 }
